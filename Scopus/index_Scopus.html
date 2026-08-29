@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Term–Class Network Analytics — Subject Classifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{
+    --ink:#F8F5EC;
+    --ink-2:#EFE9D6;
+    --ink-3:#E4DCC2;
+    --paper:#FFFFFF;
+    --paper-hi:#241F17;
+    --paper-line:#D9D2BA;
+    --ink-text:#241F17;
+    --muted-on-dark:#3B342A;
+    --faint-on-dark:#625A4B;
+    --rust:#9A4023;
+    --verdigris:#2F5C52;
+    --mustard:#93641C;
+    --slate:#3C5D6E;
+    --plum:#5C4066;
+    --tag-red:#9C3325;
+    --hairline:#CFC5AA;
+    --panel-bg:#FFFFFF;
+    --axis-line:#C7BC9C;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 12% -8%, rgba(154,64,35,0.05), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 92% 6%, rgba(47,92,82,0.05), transparent 55%),
+      var(--ink);
+    color:var(--muted-on-dark);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1220px; margin:0 auto; padding:0 28px 120px;}
+
+  header.masthead{ padding:58px 0 34px; border-bottom:1px solid var(--hairline); margin-bottom:40px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--mustard); display:flex; align-items:center; gap:10px; margin-bottom:16px;
+  }
+  .eyebrow::before{ content:""; width:7px;height:7px;border-radius:50%; background:var(--rust); box-shadow:0 0 0 3px rgba(166,71,42,0.18); }
+  h1.title{
+    font-family:'Spectral', serif; font-weight:600; font-size:clamp(30px, 4.6vw, 48px);
+    line-height:1.08; color:var(--paper-hi); margin:0 0 14px; letter-spacing:-0.01em;
+  }
+  h1.title em{ color:var(--rust); font-style:italic; font-weight:500; }
+  p.dek{ font-size:15.5px; line-height:1.7; max-width:720px; color:var(--muted-on-dark); margin:0 0 20px; }
+  .note-box{
+    background:var(--ink-2); border:1px solid var(--hairline); border-left:3px solid var(--tag-red);
+    padding:16px 20px; font-size:13.5px; line-height:1.7; color:var(--muted-on-dark); max-width:760px;
+  }
+  .note-box b{ color:var(--paper-hi); }
+  .note-box code{ font-family:'IBM Plex Mono', monospace; background:#F1E7D6; border:1px solid #E0D3B8; color:var(--rust); padding:1px 6px; border-radius:3px; font-size:12.5px; }
+
+  nav.toc{
+    display:flex; gap:6px; flex-wrap:wrap; margin:28px 0 0;
+    font-family:'IBM Plex Mono', monospace; font-size:12px;
+  }
+  nav.toc a{
+    color:var(--faint-on-dark); text-decoration:none; padding:8px 14px; border:1px solid var(--hairline);
+    background:var(--ink-2); transition:all .15s ease;
+  }
+  nav.toc a:hover{ color:var(--paper-hi); border-color:var(--rust); }
+
+  section.panel{ margin-bottom:64px; scroll-margin-top:24px; }
+  .section-head{
+    display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px;
+    padding-bottom:14px; border-bottom:1px solid var(--hairline);
+  }
+  .section-head h2{ font-family:'Spectral', serif; font-size:23px; font-weight:600; color:var(--paper-hi); margin:0; display:flex; align-items:baseline; gap:10px;}
+  .section-head h2 .num{ font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--rust); }
+  .section-head .count{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--faint-on-dark); }
+  .section-intro{ font-size:13.5px; line-height:1.7; color:var(--faint-on-dark); max-width:760px; margin:14px 0 22px; }
+
+  .viz-frame{
+    background:var(--panel-bg); border:1px solid var(--hairline); padding:22px;
+    position:relative;
+  }
+
+  /* ---- Heatmap ---- */
+  .heat-cell{ cursor:pointer; stroke:var(--panel-bg); stroke-width:1px; }
+  .heat-cell:hover{ stroke:var(--paper-hi); stroke-width:1.5px; }
+  .axis text{ fill:var(--muted-on-dark); font-family:'IBM Plex Mono', monospace; font-size:10.5px; }
+  .axis-label{ fill:var(--faint-on-dark); font-family:'IBM Plex Mono', monospace; font-size:10px; }
+  .heat-legend text{ fill:var(--faint-on-dark); font-family:'IBM Plex Mono', monospace; font-size:10px; }
+  #heatTooltip, #arcTooltip, #netTooltip, #quadTooltip{
+    position:absolute; pointer-events:none; background:var(--paper); color:var(--ink-text);
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; padding:8px 11px; border-radius:2px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.45); opacity:0; transition:opacity .1s ease; max-width:260px; z-index:20;
+  }
+
+  /* ---- Arc diagram ---- */
+  .arc-path{ fill:none; }
+  .arc-node-label{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; fill:var(--muted-on-dark); }
+  .arc-node-dot{ cursor:pointer; }
+
+  /* ---- Network ---- */
+  .network-controls{
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-bottom:16px;
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--muted-on-dark);
+  }
+  .network-controls label{ display:flex; align-items:center; gap:8px; }
+  .network-controls input[type=range]{ width:160px; accent-color:var(--rust); }
+  .zoom-btns{ display:flex; gap:4px; margin-left:auto; }
+  .zoom-btns button{
+    width:28px;height:28px; background:var(--ink-3); border:1px solid var(--paper-line); color:var(--paper-hi);
+    cursor:pointer; font-family:'IBM Plex Mono', monospace; font-size:14px; line-height:1;
+  }
+  .zoom-btns button:hover{ border-color:var(--rust); }
+  .legend-row{ display:flex; gap:14px; flex-wrap:wrap; font-family:'IBM Plex Mono', monospace; font-size:10.5px; margin-top:14px; }
+  .legend-row .sw{ display:inline-block; width:9px;height:9px; border-radius:50%; margin-right:6px; }
+  .net-link{ stroke-opacity:0.45; }
+  .net-node-term{ cursor:pointer; }
+  .net-node-class{ cursor:pointer; stroke:var(--paper-hi); stroke-width:1.5px; }
+  .net-label{ font-family:'IBM Plex Mono', monospace; pointer-events:none; fill:var(--muted-on-dark); }
+  .net-label-class{ font-family:'Spectral', serif; font-weight:600; pointer-events:none; }
+
+  .detail-panel{
+    position:absolute; top:22px; right:22px; width:230px; background:var(--paper); color:var(--ink-text);
+    padding:16px 18px; box-shadow:0 10px 26px rgba(0,0,0,0.45); font-size:12px; display:none;
+  }
+  .detail-panel.show{ display:block; }
+  .detail-panel h4{ font-family:'Spectral', serif; font-size:15px; margin:0 0 8px; }
+  .detail-panel .close{ position:absolute; top:8px; right:10px; cursor:pointer; color:#7a715a; font-family:'IBM Plex Mono',monospace; }
+  .detail-panel .row{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono', monospace; font-size:11px; padding:4px 0; border-bottom:1px dashed var(--paper-line); }
+  .detail-panel .row:last-child{ border-bottom:none; }
+
+  /* ---- Quadrant ---- */
+  .quad-line{ stroke:var(--axis-line); stroke-dasharray:3,3; }
+  .quad-label{ font-family:'IBM Plex Mono', monospace; font-size:10px; fill:var(--faint-on-dark); text-transform:uppercase; letter-spacing:.06em; }
+  .quad-dot{ cursor:pointer; }
+
+  footer{ border-top:1px solid var(--hairline); padding-top:28px; margin-top:10px; }
+  footer h4{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--mustard); margin:0 0 12px; }
+  footer p{ font-size:13px; line-height:1.75; color:var(--faint-on-dark); max-width:760px; margin:0 0 10px; }
+
+  @media (max-width: 800px){
+    .detail-panel{ position:static; width:auto; margin-top:14px; }
+  }
+
+  /* ===== Readability improvements ===== */
+  html { scroll-behavior:smooth; }
+  body {
+    font-size:15px;
+    line-height:1.65;
+  }
+  .wrap {
+    max-width:1280px;
+    padding-left:clamp(16px,3vw,36px);
+    padding-right:clamp(16px,3vw,36px);
+  }
+  header.masthead {
+    padding-top:42px;
+    margin-bottom:32px;
+  }
+  p.dek {
+    font-size:16px;
+    color:#332D24;
+  }
+  .note-box {
+    font-size:14px;
+    color:#3B342A;
+    background:#F1EBDD;
+  }
+  nav.toc {
+    font-size:13px;
+    gap:8px;
+  }
+  nav.toc a {
+    color:#51493C;
+    padding:9px 15px;
+    border-radius:5px;
+  }
+  .section-head {
+    margin-bottom:12px;
+  }
+  .section-head h2 {
+    font-size:26px;
+  }
+  .section-head .count {
+    font-size:12px;
+    color:#625A4B;
+  }
+  .section-intro {
+    font-size:14.5px;
+    color:#625A4B;
+    line-height:1.8;
+  }
+  .viz-frame {
+    padding:18px;
+    border-radius:8px;
+    box-shadow:0 3px 14px rgba(36,31,23,.06);
+    overflow-x:auto;
+    overflow-y:hidden;
+  }
+  .viz-frame > div[id$="Chart"] {
+    min-width:760px;
+  }
+  .viz-frame svg {
+    display:block;
+  }
+  .network-controls {
+    font-size:13px;
+    line-height:1.5;
+    padding:10px 12px;
+    background:#F7F3E9;
+    border:1px solid #DED5C2;
+    border-radius:6px;
+  }
+  .network-controls input[type=range] {
+    width:220px;
+  }
+  .zoom-btns button {
+    width:34px;
+    height:34px;
+    border-radius:5px;
+    font-size:16px;
+  }
+  .legend-row {
+    font-size:12px;
+    line-height:1.7;
+  }
+  .legend-row .sw {
+    width:10px;
+    height:10px;
+  }
+  #heatTooltip, #arcTooltip, #netTooltip, #quadTooltip {
+    font-size:12px;
+    line-height:1.55;
+    padding:10px 12px;
+    max-width:320px;
+    border:1px solid #D5CBB5;
+  }
+  .detail-panel {
+    font-size:14px;
+  }
+  .detail-panel .row {
+    line-height:1.55;
+    padding:9px 0;
+  }
+
+  /* D3 labels were very small; enlarge them slightly. */
+  .axis text { font-size:12px; }
+  .axis-label { font-size:11.5px; }
+  .heat-legend text { font-size:11.5px; }
+  .arc-node-label { font-size:11.5px; }
+  .net-label-class { font-size:12px; }
+  .quad-label { font-size:12px; }
+
+  @media (max-width: 800px) {
+    header.masthead { padding-top:28px; }
+    h1.title { font-size:34px; }
+    .section-head {
+      align-items:flex-start;
+      gap:8px;
+      flex-direction:column;
+    }
+    .network-controls {
+      align-items:flex-start;
+      flex-direction:column;
+    }
+    .zoom-btns {
+      margin-left:0;
+    }
+    .viz-frame {
+      padding:12px;
+    }
+  }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Model Introspection · No. 002</div>
+    <h1 class="title">Term–Class <em>Network Analytics</em></h1>
+    <p class="dek">
+      Adapted from a keyword co-occurrence dashboard built for real Scopus documents. This model came with no
+      document corpus attached — only the trained TF-IDF + LinearSVC pipeline — so every view below is rebuilt
+      from what the classifier itself encodes: vocabulary, IDF, and per-class decision coefficients.
+    </p>
+    <div class="note-box">
+      <b>วิธีการที่ใช้จริงในโปรเจกต์นี้.</b> ทุกภาพด้านล่างสร้างจากการ introspect โมเดล
+      <code>subject_classifier.joblib</code> ตัวเดียวกันที่ใช้จำแนกบทความ Scopus จริง (36,069 บทความ 10 สาขา):
+      <code>TfidfVectorizer</code> (max_features=50,000, ngram 1–2, min_df=2, sublinear_tf) ต่อด้วย
+      <code>LinearSVC</code> (one‑vs‑rest, C=1.0) ค่าตัวเลขทั้งหมดคือ <b>coefficient ของ LinearSVC</b> และ
+      <b>IDF ของ TF‑IDF</b> ที่ดึงออกมาตรงจากไฟล์โมเดล ไม่ได้คำนวณจากเอกสารดิบใหม่
+    </div>
+    <nav class="toc">
+      <a href="#heatmap">1. Keyword × Class Weight Heatmap</a>
+      <a href="#similarity">2. Class Similarity Arc Diagram</a>
+      <a href="#network">3. Term–Class Association Network</a>
+      <a href="#quadrant">4. Specificity Quadrant Plot</a>
+    </nav>
+  </header>
+
+  <section class="panel" id="heatmap">
+    <div class="section-head">
+      <h2><span class="num">01</span> Keyword × Class Weight Heatmap</h2>
+      <span class="count" id="heatCount"></span>
+    </div>
+    <p class="section-intro">
+      ตารางแสดงน้ำหนักคำศัพท์ 32 คำเทียบกับ 10 สาขา จัดกลุ่มและเรียงตามสาขาที่คำนั้นผลักดันมากที่สุด
+      แถบสีซ้ายของแต่ละแถวและสวอตช์เหนือแต่ละคอลัมน์ใช้สีสาขาเดียวกัน เพื่อให้ตามรอยคำไปยังสาขาได้ง่าย
+      <b>สีส้ม (โทนร้อน)</b> คือค่าน้ำหนักเป็นบวก ยิ่งสูงยิ่งผลักดันให้โมเดลทายว่าเป็นสาขานั้นทันที
+      <b>สีเขียว (โทนเย็น)</b> คือค่าน้ำหนักเป็นลบ ยิ่งติดลบมากยิ่งลดโอกาสที่จะเป็นสาขานั้น
+      เซลล์ที่มีค่าน้ำหนักสูงสุดจะแสดงตัวเลขกำกับไว้
+    </p>
+    <div class="viz-frame">
+      <div id="heatmapChart"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="similarity">
+    <div class="section-head">
+      <h2><span class="num">02</span> Class Similarity Arc Diagram</h2>
+      <span class="count" id="simCount"></span>
+    </div>
+    <p class="section-intro">
+      แผนภูมิเส้นโค้งแสดงความคล้ายกันระหว่างสาขา วัดจาก Jaccard overlap ของคำเด่นอันดับต้น ๆ 40 คำ ของแต่ละสาขา
+      <b>เส้นยิ่งหนา</b> คือทั้งสองสาขาวิชามีคำศัพท์เด่นที่ใช้เหมือนกันซ้ำกันหลายคำ ทำให้โมเดลมีโอกาสจำแนกสับสน
+      ระหว่างสองสาขานั้นได้ง่ายขึ้น <b>เส้นบางหรือไม่มีเส้น</b> คือสาขานั้นใช้คำศัพท์เฉพาะตัวชัดเจน ไม่ค่อยไปซ้ำกับสาขาอื่น
+    </p>
+    <div class="viz-frame">
+      <div id="arcChart"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="network">
+    <div class="section-head">
+      <h2><span class="num">03</span> Term–Class Association Network</h2>
+      <span class="count" id="netCount"></span>
+    </div>
+    <p class="section-intro">
+      กราฟเครือข่ายโยงใยคำศัพท์เข้าหา 10 สาขาวิชา <b>วงกลมใหญ่ (10 วง)</b> แทน 10 สาขาวิชา
+      (เปรียบเหมือนดวงอาทิตย์) <b>วงกลมเล็ก</b> แทนคำศัพท์เด่นแต่ละคำ (เปรียบเหมือนดาวบริวาร) ขนาดของวงกลมเล็ก
+      ตามน้ำหนักของคำในสาขาที่แข็งแรงที่สุด <b>เส้นลากเชื่อม</b> แสดงว่าคำนั้นอยู่ในสาขานั้น โดยจะเชื่อมก็ต่อเมื่อ
+      น้ำหนักของคำต่อสาขานั้นเกินค่า threshold ด้านล่าง ลากวงกลม เลื่อนซูม หรือคลิกวงกลมเพื่อดูรายละเอียดเต็ม
+    </p>
+    <div class="network-controls">
+      <label>Min association weight: <span id="threshVal">1.5</span>
+        <input type="range" id="threshSlider" min="0.6" max="6" step="0.1" value="1.5">
+      </label>
+      <div class="zoom-btns">
+        <button id="zoomOut">−</button>
+        <button id="zoomIn">+</button>
+        <button id="zoomReset">Reset</button>
+      </div>
+    </div>
+    <div class="viz-frame" style="position:relative;">
+      <div id="networkChart"></div>
+      <div class="detail-panel" id="detailPanel">
+        <span class="close" id="detailClose">×</span>
+        <h4 id="detailTitle"></h4>
+        <div id="detailBody"></div>
+      </div>
+    </div>
+    <div class="legend-row" id="netLegend"></div>
+  </section>
+
+  <section class="panel" id="quadrant">
+    <div class="section-head">
+      <h2><span class="num">04</span> Specificity Quadrant Plot</h2>
+      <span class="count" id="quadCount"></span>
+    </div>
+    <p class="section-intro">
+      กราฟจัดคำศัพท์เด่น 88 คำ <b>แกน X</b> คือแรงผลักดันของคำต่อสาขา (น้ำหนัก LinearSVC ในสาขาที่แข็งแรงที่สุด)
+      ยิ่งอยู่ทางขวายิ่งเป็นสัญญาณที่ชัดว่าโมเดลจะทายเป็นสาขานั้น เช่น คำว่า software ทายเป็นสาขาซอฟต์แวร์ทันที
+      <b>แกน Y</b> คือความเฉพาะสาย (ส่วนต่างของน้ำหนักจากสาขาอันดับ 2) ยิ่งอยู่สูงยิ่งเป็นคำเฉพาะทางที่ไม่ปะปนกับ
+      สาขาอื่นเลย <b>ขนาดวงกลม</b> มาจากค่า IDF วงกลมยิ่งใหญ่แปลว่าเป็นคำเฉพาะทางที่หายาก
+      มุมขวาบนสุด (<b>STRONG &amp; EXCLUSIVE</b>) คือกลุ่มคำศัพท์ที่ช่วยให้โมเดลทำนายสาขาได้อย่างแม่นยำที่สุด
+    </p>
+    <div class="viz-frame">
+      <div id="quadrantChart"></div>
+    </div>
+  </section>
+
+  <footer>
+    <h4>Methodology</h4>
+    <p>
+      Every figure is derived by introspecting the pickled scikit‑learn pipeline directly: the
+      <code>TfidfVectorizer</code> vocabulary/IDF table and the <code>LinearSVC</code> one‑vs‑rest coefficient
+      matrix (10 classes × 50,000 terms). No raw documents, publication metadata, or held‑out predictions were
+      available — only the model artifact — so nothing here reflects real co‑occurrence, publication trends, or
+      accuracy. It describes what the linear model learned to weight, not how well it generalises.
+    </p>
+  </footer>
+
+</div>
+
+<div id="heatTooltip"></div>
+<div id="arcTooltip"></div>
+<div id="netTooltip"></div>
+<div id="quadTooltip"></div>
+
+<script>
+const DATA = {"classes": ["Artificial Intelligence", "Computational Theory AND Mathematics", "Computer Graphics and Computer-Aided Design", "Computer Networks and Communications", "Computer Science Applications", "Computer Vision and Pattern Recognition", "Computer software", "Computer vision", "General Computer Science", "Human-Computer Interaction"], "term_nodes": [{"term": "2017", "top_class": "General Computer Science", "top_class_idx": 8, "weight": 2.7157, "exclusivity": 2.4008, "idf": 4.735, "weights_by_class": [-0.384, -0.483, 0.3148, -0.8508, -1.2753, -0.5634, -0.8124, -0.3885, 2.7157, -0.4346]}, {"term": "2018", "top_class": "General Computer Science", "top_class_idx": 8, "weight": 2.8416, "exclusivity": 2.1952, "idf": 4.59, "weights_by_class": [-0.1722, -0.4135, 0.6464, -0.7649, -1.313, -0.2082, -0.7749, -0.5042, 2.8416, -0.682]}, {"term": "2019", "top_class": "General Computer Science", "top_class_idx": 8, "weight": 2.832, "exclusivity": 2.4529, "idf": 4.515, "weights_by_class": [-0.3818, -0.3275, 0.3791, -0.5164, -1.6649, 0.0459, -0.7892, -0.2442, 2.832, -0.5181]}, {"term": "2020", "top_class": "General Computer Science", "top_class_idx": 8, "weight": 2.72, "exclusivity": 1.0474, "idf": 4.229, "weights_by_class": [-0.2917, -0.5739, 0.345, -0.6848, -1.7201, 1.6726, -0.8485, -1.1008, 2.72, -0.5904]}, {"term": "2021", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 2.5097, "exclusivity": 0.1682, "idf": 4.31, "weights_by_class": [-0.5845, -0.1099, 0.102, -0.6314, -1.6796, 2.5097, -0.6339, -1.4915, 2.3415, -0.4441]}, {"term": "2022", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 2.6624, "exclusivity": 0.9932, "idf": 4.29, "weights_by_class": [-0.1732, -0.3519, 0.5241, -0.9045, -1.7709, 2.6624, -0.4888, -1.8466, 1.6692, -0.2759]}, {"term": "2023", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 2.6947, "exclusivity": 1.1776, "idf": 4.108, "weights_by_class": [-0.9485, 0.0579, 0.5915, -0.7048, -0.0777, 2.6947, -0.6782, -1.6944, 1.5171, -0.6012]}, {"term": "2024", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 7.1114, "exclusivity": 4.7928, "idf": 3.434, "weights_by_class": [-2.2341, -1.1879, -0.3349, -0.4673, 7.1114, 2.3186, -0.732, -2.4497, -2.8832, -1.2535]}, {"term": "2024 ieee", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 2.264, "exclusivity": 1.5143, "idf": 4.939, "weights_by_class": [-0.5401, -0.2193, -0.0468, -0.8429, 2.264, 0.7497, -0.6869, -1.0835, -0.923, -0.7231]}, {"term": "2025", "top_class": "Computer vision", "top_class_idx": 7, "weight": 3.6443, "exclusivity": 0.1018, "idf": 1.679, "weights_by_class": [3.5424, -2.1455, -3.0842, 2.8045, 0.6511, -4.2034, 2.9501, 3.6443, -4.4923, 1.8442]}, {"term": "2025 acm", "top_class": "Computer vision", "top_class_idx": 7, "weight": 1.4538, "exclusivity": 0.0474, "idf": 5.351, "weights_by_class": [0.1724, -0.1546, -0.2744, 0.0986, -0.228, -1.5961, -0.1187, 1.4538, -0.2792, 1.4064]}, {"term": "2025 author", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 3.5755, "exclusivity": 1.0973, "idf": 3.456, "weights_by_class": [3.5755, -0.7871, -0.9198, 0.7974, -0.7463, -2.5761, 0.1441, 2.4781, -2.0867, 1.2608]}, {"term": "2025 elsevier", "top_class": "Computer vision", "top_class_idx": 7, "weight": 2.355, "exclusivity": 0.7952, "idf": 4.687, "weights_by_class": [1.5598, -0.3641, -0.4893, 0.4158, -0.4398, -2.0627, -0.1708, 2.355, -0.5275, 1.032]}, {"term": "2025 ieee", "top_class": "Computer software", "top_class_idx": 6, "weight": 3.9712, "exclusivity": 1.3702, "idf": 3.081, "weights_by_class": [-2.9865, -0.6883, -1.094, 1.6457, 2.6009, 1.6932, 3.9712, -4.0847, -1.648, -2.4408]}, {"term": "2025 index", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 1.9645, "exclusivity": 1.7096, "idf": 5.359, "weights_by_class": [1.9645, -0.1806, -0.2345, -0.1054, -1.0229, -0.2394, -0.1358, 0.2549, -0.5022, -0.3469]}, {"term": "2025 spie", "top_class": "Computer vision", "top_class_idx": 7, "weight": 1.9354, "exclusivity": 1.7672, "idf": 5.489, "weights_by_class": [-0.1306, -0.0842, -0.3984, 0.0954, -0.0645, -1.0527, 0.1682, 1.9354, -0.1966, -0.084]}, {"term": "2025 the", "top_class": "Computer vision", "top_class_idx": 7, "weight": 2.1547, "exclusivity": 0.1578, "idf": 4.367, "weights_by_class": [1.9969, -0.6568, -0.4796, 0.1767, -0.7694, -1.4311, 0.1779, 2.1547, -0.8431, 0.4483]}, {"term": "ai", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 1.5736, "exclusivity": 1.3363, "idf": 2.875, "weights_by_class": [1.5736, -0.4671, -0.4544, -0.6849, 0.2372, -0.0576, -0.1475, -0.3121, -0.9104, -0.4988]}, {"term": "aided", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 7.2037, "exclusivity": 7.8727, "idf": 2.883, "weights_by_class": [-1.1795, -1.8766, 7.2037, -0.669, -1.0288, -1.8987, -1.7602, -1.6603, -1.7377, -1.7677]}, {"term": "aided design", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 5.7734, "exclusivity": 6.6298, "idf": 3.388, "weights_by_class": [-0.9074, -1.6821, 5.7734, -0.8564, -1.8174, -1.9959, -1.5052, -2.288, -2.1113, -1.491]}, {"term": "application", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 6.031, "exclusivity": 6.1636, "idf": 2.716, "weights_by_class": [-1.3053, -0.5275, -0.1326, -0.7336, 6.031, -0.4682, -1.5925, -0.7173, -2.5212, -0.9714]}, {"term": "applications", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 7.5115, "exclusivity": 7.7081, "idf": 2.369, "weights_by_class": [-1.2403, -0.7594, -0.1966, -1.2629, 7.5115, -0.3305, -1.5619, -1.1603, -2.8917, -1.2188]}, {"term": "artificial", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 5.6907, "exclusivity": 5.8218, "idf": 2.457, "weights_by_class": [5.6907, -0.8785, -0.6111, -1.8244, -0.7232, -0.5779, -0.8548, -2.4163, -0.131, -1.9369]}, {"term": "artificial intelligence", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 6.4086, "exclusivity": 6.8614, "idf": 2.556, "weights_by_class": [6.4086, -1.0717, -0.8117, -2.1832, -1.0837, -0.7886, -0.9786, -2.832, -0.4528, -1.9206]}, {"term": "author 2025", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 4.095, "exclusivity": 3.115, "idf": 4.163, "weights_by_class": [4.095, -0.3695, -0.704, -0.6836, -2.5416, -1.2347, -0.441, 0.98, -1.2878, 0.7889]}, {"term": "author author", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 1.7158, "exclusivity": 0.7767, "idf": 3.064, "weights_by_class": [0.479, -0.8042, -1.0288, 0.048, -0.6705, -0.9391, -0.4754, 0.9391, -0.0161, 1.7158]}, {"term": "bifurcation", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 1.8936, "exclusivity": 1.9908, "idf": 6.635, "weights_by_class": [-0.3407, 1.8936, -0.2482, -0.2101, -0.2914, -0.2495, -0.7624, -0.1323, -0.4519, -0.0972]}, {"term": "cad", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 3.5447, "exclusivity": 4.1589, "idf": 3.923, "weights_by_class": [-0.9335, -1.1538, 3.5447, -0.6142, -1.2545, -1.794, -1.2346, -1.6697, -1.4059, -0.9692]}, {"term": "combinatorial mathematics", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 1.6491, "exclusivity": 1.6883, "idf": 5.07, "weights_by_class": [-0.3358, 1.6491, -0.4019, -0.563, -0.4428, -0.3094, -0.1973, -0.109, -1.0882, -0.0392]}, {"term": "communication", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 11.809, "exclusivity": 12.5787, "idf": 2.838, "weights_by_class": [-2.8725, -1.0645, -0.7697, 11.809, -3.1589, -2.4915, -2.342, -4.1126, -0.9205, -2.7858]}, {"term": "communications", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 3.8615, "exclusivity": 4.1477, "idf": 3.972, "weights_by_class": [-1.3497, -0.2863, -0.4883, 3.8615, -1.2543, -0.502, -1.1002, -1.0556, -0.3426, -0.6832]}, {"term": "computation theory", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 1.9802, "exclusivity": 1.9169, "idf": 4.204, "weights_by_class": [-0.4921, 1.9802, -0.5619, -0.0907, -0.7862, -0.568, -0.4776, -0.1392, -0.9342, 0.0633]}, {"term": "computational", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 7.6465, "exclusivity": 7.9737, "idf": 2.486, "weights_by_class": [-1.1122, 7.6465, -1.1568, -1.0441, -1.8907, -1.3942, -0.6947, -0.5488, -2.8527, -0.3272]}, {"term": "computational complexity", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 1.9385, "exclusivity": 1.9358, "idf": 4.022, "weights_by_class": [-0.4989, 1.9385, -0.379, -0.7141, -0.6665, -0.3265, -0.3041, 0.0027, -1.6312, -0.0244]}, {"term": "computer aided", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 7.4125, "exclusivity": 8.1233, "idf": 2.9, "weights_by_class": [-1.2463, -1.9549, 7.4125, -0.7108, -1.0831, -1.8619, -1.7785, -1.5284, -1.7887, -1.7746]}, {"term": "computer graphics", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 3.356, "exclusivity": 3.538, "idf": 3.038, "weights_by_class": [-0.6996, -0.5143, 3.356, -0.3813, -0.9584, -0.9721, -1.2687, -0.182, -0.6091, -0.3634]}, {"term": "computer interaction", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 7.2153, "exclusivity": 7.6782, "idf": 3.101, "weights_by_class": [-4.9739, -0.4629, -0.9782, -0.9262, -0.5639, -0.6936, -0.8987, -4.2285, -0.5211, 7.2153]}, {"term": "computer networks", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 1.7705, "exclusivity": 1.7193, "idf": 5.376, "weights_by_class": [-0.4499, 0.0512, -0.1169, 1.7705, -0.4872, -0.5059, -0.2335, -0.0207, -0.0791, -0.2495]}, {"term": "computer science", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 4.6133, "exclusivity": 0.4592, "idf": 2.992, "weights_by_class": [-4.598, -3.4406, -1.1877, -1.9423, 4.6133, -2.1114, -1.9828, -1.0889, 4.1541, -1.197]}, {"term": "computer software", "top_class": "Computer software", "top_class_idx": 6, "weight": 17.2689, "exclusivity": 18.7718, "idf": 3.127, "weights_by_class": [-4.0235, -1.503, -3.0722, -5.2452, -4.1109, -1.5173, 17.2689, -2.3248, -1.7529, -2.1002]}, {"term": "computer systems", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 2.1592, "exclusivity": 1.787, "idf": 3.385, "weights_by_class": [-1.4026, -0.6804, -0.7437, 2.1592, 0.3308, -0.2749, -0.7419, -0.0604, -0.1672, 0.3722]}, {"term": "computer vision", "top_class": "Computer vision", "top_class_idx": 7, "weight": 7.759, "exclusivity": 3.2393, "idf": 2.603, "weights_by_class": [-5.9255, -1.0632, -1.5514, -1.8982, -1.4523, 4.5197, -1.7572, 7.759, -1.3087, -3.5278]}, {"term": "design", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 5.6246, "exclusivity": 5.8816, "idf": 2.189, "weights_by_class": [-1.0005, -0.9817, 5.6246, -1.2209, -0.257, -1.3016, -1.0141, -1.1894, -1.0588, -0.4544]}, {"term": "distributed", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 1.6673, "exclusivity": 1.093, "idf": 3.662, "weights_by_class": [-1.2523, -0.1959, -0.2661, 1.6673, 0.5743, -0.3691, -0.6839, -0.4966, 0.2103, -0.3612]}, {"term": "distributed computer", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 2.2481, "exclusivity": 1.8089, "idf": 4.241, "weights_by_class": [-0.956, -0.5519, -0.268, 2.2481, 0.4393, -0.1391, -0.7775, -0.4106, 0.1354, -0.4629]}, {"term": "general", "top_class": "General Computer Science", "top_class_idx": 8, "weight": 18.5908, "exclusivity": 19.6063, "idf": 2.953, "weights_by_class": [-2.136, -4.0055, -2.5799, -2.0049, -13.5824, -2.1996, -1.9319, -1.0156, 18.5908, -1.2921]}, {"term": "graph based", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 1.7418, "exclusivity": 1.8117, "idf": 5.58, "weights_by_class": [-0.2693, -0.2011, 1.7418, -0.0971, -0.0698, -0.0893, -0.2014, -0.204, -0.2625, -0.1873]}, {"term": "graphic", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 4.308, "exclusivity": 4.6066, "idf": 4.177, "weights_by_class": [-0.6542, -0.6644, 4.308, -0.4507, -0.6286, -0.5288, -1.2304, -0.6297, -0.9797, -0.2986]}, {"term": "graphic methods", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 2.1765, "exclusivity": 2.1643, "idf": 4.696, "weights_by_class": [-0.2391, -0.6027, 2.1765, -0.2076, -0.084, -0.1954, -0.2505, -0.365, -0.4335, 0.0122]}, {"term": "graphics", "top_class": "Computer Graphics and Computer-Aided Design", "top_class_idx": 2, "weight": 6.2609, "exclusivity": 6.3774, "idf": 2.902, "weights_by_class": [-0.9634, -0.8248, 6.2609, -0.734, -1.5087, -1.3293, -2.1465, -0.1166, -1.2341, -0.4634]}, {"term": "human", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 3.9154, "exclusivity": 3.7774, "idf": 2.299, "weights_by_class": [-1.5759, -0.4607, -0.8903, -1.1359, -0.0508, 0.0314, -0.7127, -1.1359, 0.138, 3.9154]}, {"term": "human computer", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 7.7327, "exclusivity": 8.1714, "idf": 3.088, "weights_by_class": [-4.8618, -0.4394, -0.9862, -1.1704, -0.4394, -0.4564, -0.9726, -4.2309, -0.4386, 7.7327]}, {"term": "ieee", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 2.7982, "exclusivity": 1.2904, "idf": 2.367, "weights_by_class": [-2.9248, -0.0081, 0.628, -0.6762, 1.4873, 2.7982, 1.5078, -5.3625, 0.1274, -2.6835]}, {"term": "ieee author", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 2.6153, "exclusivity": 1.1485, "idf": 2.496, "weights_by_class": [-2.8947, -0.1684, 0.4224, -0.4076, 1.3622, 2.6153, 1.4668, -4.9519, 0.5125, -2.6162]}, {"term": "in general", "top_class": "General Computer Science", "top_class_idx": 8, "weight": 4.5996, "exclusivity": 4.7863, "idf": 4.486, "weights_by_class": [-0.5831, -0.9714, -0.8306, -0.6079, -3.9347, -0.7824, -0.7107, -0.1867, 4.5996, -0.5371]}, {"term": "intelligence", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 5.6637, "exclusivity": 6.0391, "idf": 2.486, "weights_by_class": [5.6637, -0.7351, -0.7843, -1.8104, -1.0376, -0.6854, -1.1766, -2.6465, -0.3754, -1.9609]}, {"term": "interaction", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 5.9057, "exclusivity": 6.2261, "idf": 2.821, "weights_by_class": [-3.3604, -0.5032, -0.5688, -1.1012, -0.5009, -0.3973, -0.903, -3.1715, -0.3204, 5.9057]}, {"term": "interaction human", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 4.6647, "exclusivity": 4.7913, "idf": 4.024, "weights_by_class": [-2.2549, -0.1267, -0.728, -1.321, -0.9714, -0.4063, -0.7848, -1.8916, -0.6255, 4.6647]}, {"term": "java", "top_class": "Computer software", "top_class_idx": 6, "weight": 1.8351, "exclusivity": 1.8314, "idf": 5.933, "weights_by_class": [-0.3859, -0.1879, -0.0621, 0.0037, -0.4036, -0.1809, 1.8351, -0.3201, -0.3482, -0.4608]}, {"term": "keywords computer", "top_class": "Computer software", "top_class_idx": 6, "weight": 2.3059, "exclusivity": 1.5824, "idf": 2.562, "weights_by_class": [-2.5916, -1.4973, 0.7235, -0.4356, -1.4824, -0.4358, 2.3059, 0.1508, 0.3363, -2.2]}, {"term": "mathematics", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 11.1199, "exclusivity": 11.7684, "idf": 3.041, "weights_by_class": [-2.502, 11.1199, -1.9115, -1.9791, -2.8912, -1.8229, -2.3855, -0.6485, -4.573, -0.7836]}, {"term": "network", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 5.4204, "exclusivity": 5.4358, "idf": 2.287, "weights_by_class": [-1.3393, -0.3008, -0.6547, 5.4204, -0.539, -0.0154, -1.0856, -0.5137, -0.5613, -1.4138]}, {"term": "networks", "top_class": "Computer Networks and Communications", "top_class_idx": 3, "weight": 4.2278, "exclusivity": 4.1746, "idf": 2.402, "weights_by_class": [-0.7631, 0.0532, -0.7606, 4.2278, -0.6324, -0.0557, -0.9818, -0.6125, -0.2227, -1.4111]}, {"term": "pattern", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 7.4793, "exclusivity": 7.6782, "idf": 3.222, "weights_by_class": [-0.5503, -0.199, -0.8917, -1.6435, -1.9294, 7.4793, -0.8172, -6.3082, -1.4995, -0.3578]}, {"term": "pattern recognition", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 7.6722, "exclusivity": 8.0254, "idf": 3.697, "weights_by_class": [-0.6968, -0.6089, -1.0531, -1.6663, -2.1189, 7.6722, -0.6673, -5.8212, -1.5348, -0.3532]}, {"term": "patterns", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 6.9799, "exclusivity": 6.83, "idf": 3.323, "weights_by_class": [-0.4645, 0.1499, -0.3497, -0.8832, -0.8372, 6.9799, -0.3465, -4.7168, -0.6468, -0.5206]}, {"term": "python", "top_class": "Computer software", "top_class_idx": 6, "weight": 4.0581, "exclusivity": 4.1566, "idf": 4.399, "weights_by_class": [-1.6073, -1.1517, -0.8775, -1.5397, -0.499, -0.6136, 4.0581, -1.2898, -0.0985, -0.5962]}, {"term": "real", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 1.6762, "exclusivity": 1.524, "idf": 2.44, "weights_by_class": [-0.5542, -0.2253, 0.0119, -0.1279, 0.1522, -0.3596, -0.2891, -0.3172, -0.112, 1.6762]}, {"term": "real world", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 3.0033, "exclusivity": 2.9518, "idf": 3.344, "weights_by_class": [-0.803, -0.4783, -0.4422, -0.5512, 0.0515, 0.0382, -0.1465, -1.1214, -0.3299, 3.0033]}, {"term": "recognition", "top_class": "Computer Vision and Pattern Recognition", "top_class_idx": 5, "weight": 8.6202, "exclusivity": 9.0111, "idf": 2.727, "weights_by_class": [-0.5468, -0.8168, -1.0746, -1.2484, -2.0162, 8.6202, -1.0406, -4.6551, -1.9899, -0.391]}, {"term": "science", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 12.4019, "exclusivity": 4.6438, "idf": 2.399, "weights_by_class": [-5.2176, -3.0576, -3.7678, -4.1044, 12.4019, -4.2239, -4.2191, -3.3116, 7.7581, -4.1767]}, {"term": "science and", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 2.4173, "exclusivity": 1.7505, "idf": 3.939, "weights_by_class": [-1.6211, -0.8782, -0.9895, -1.3087, 2.4173, -1.2886, -0.9269, -1.3897, 0.6668, -1.4587]}, {"term": "sciences", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 4.053, "exclusivity": 2.006, "idf": 4.401, "weights_by_class": [-1.6211, -0.4752, -1.5046, -1.0438, 4.053, -1.0449, -1.1172, -1.1195, 2.0469, -1.9211]}, {"term": "sciences computing", "top_class": "Computer Science Applications", "top_class_idx": 4, "weight": 2.7876, "exclusivity": 2.3814, "idf": 5.725, "weights_by_class": [-0.5718, -0.1791, -0.5833, -0.8955, 2.7876, -0.3388, -0.1738, -0.2973, 0.4062, -0.7069]}, {"term": "simulation", "top_class": "Computer software", "top_class_idx": 6, "weight": 2.6025, "exclusivity": 2.7739, "idf": 3.058, "weights_by_class": [-1.0162, -0.7186, -0.3373, -0.9244, -0.1714, -0.1793, 2.6025, -1.0617, -0.3641, -0.3893]}, {"term": "software", "top_class": "Computer software", "top_class_idx": 6, "weight": 11.278, "exclusivity": 12.1593, "idf": 2.641, "weights_by_class": [-4.236, -1.367, -1.9533, -4.0857, -2.7191, -1.6471, 11.278, -2.935, -0.8813, -2.8226]}, {"term": "software curricula", "top_class": "Computer software", "top_class_idx": 6, "weight": 1.6478, "exclusivity": 1.6694, "idf": 6.816, "weights_by_class": [-0.3076, -0.0959, -0.2819, -0.0704, -0.9615, -0.0216, 1.6478, -0.0266, -0.4514, -0.1212]}, {"term": "software data", "top_class": "Computer software", "top_class_idx": 6, "weight": 2.0796, "exclusivity": 2.0782, "idf": 5.819, "weights_by_class": [-0.6214, 0.0014, -0.277, -1.162, -0.8513, -0.2031, 2.0796, -0.3283, -0.1444, -0.3337]}, {"term": "spie", "top_class": "Computer vision", "top_class_idx": 7, "weight": 2.0709, "exclusivity": 2.0224, "idf": 4.751, "weights_by_class": [0.0485, -0.2395, -0.1266, -0.08, -0.1359, -1.0631, -0.1029, 2.0709, -0.0468, 0.0284]}, {"term": "spie author", "top_class": "Computer vision", "top_class_idx": 7, "weight": 1.9857, "exclusivity": 1.9724, "idf": 5.13, "weights_by_class": [-0.126, -0.1237, -0.1455, -0.0962, -0.0255, -1.1037, -0.1099, 1.9857, -0.0441, 0.0133]}, {"term": "the author", "top_class": "Artificial Intelligence", "top_class_idx": 0, "weight": 2.8078, "exclusivity": 2.304, "idf": 2.935, "weights_by_class": [2.8078, -0.9959, -0.7203, -0.4268, -0.7482, -0.6092, -0.4385, 0.2839, -0.0569, 0.5038]}, {"term": "the general", "top_class": "General Computer Science", "top_class_idx": 8, "weight": 3.5098, "exclusivity": 3.7387, "idf": 4.722, "weights_by_class": [-0.46, -0.5337, -0.7058, -0.5078, -3.0376, -0.9427, -0.412, -0.229, 3.5098, -0.4643]}, {"term": "theory", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 6.6581, "exclusivity": 6.8827, "idf": 2.69, "weights_by_class": [-1.4448, 6.6581, -1.6336, -1.1692, -1.6836, -1.5392, -0.9665, -0.8142, -2.3515, -0.2246]}, {"term": "tree", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 2.2372, "exclusivity": 2.3515, "idf": 3.899, "weights_by_class": [-0.4072, 2.2372, -0.6603, -1.1068, -0.7367, -0.8745, -0.5065, -0.4858, -0.811, -0.1143]}, {"term": "trees", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 3.5034, "exclusivity": 3.8259, "idf": 3.725, "weights_by_class": [-1.016, 3.5034, -1.0454, -1.1748, -0.6603, -1.0909, -0.4703, -0.549, -1.8849, -0.3225]}, {"term": "trees mathematics", "top_class": "Computational Theory AND Mathematics", "top_class_idx": 1, "weight": 4.0822, "exclusivity": 4.3323, "idf": 3.916, "weights_by_class": [-1.0205, 4.0822, -0.9009, -1.4048, -0.865, -0.9989, -0.6478, -0.2533, -1.9577, -0.2501]}, {"term": "vision", "top_class": "Computer vision", "top_class_idx": 7, "weight": 11.7429, "exclusivity": 5.841, "idf": 2.477, "weights_by_class": [-6.584, -1.2027, -2.2485, -2.743, -1.7868, 5.9019, -2.396, 11.7429, -1.8128, -6.0918]}, {"term": "world", "top_class": "Human-Computer Interaction", "top_class_idx": 9, "weight": 1.9822, "exclusivity": 1.7318, "idf": 3.059, "weights_by_class": [-0.9344, -0.3903, 0.0192, -0.1133, -0.1136, 0.0304, -0.2071, -0.9841, 0.2504, 1.9822]}], "edges": [{"term": "2017", "class": "General Computer Science", "weight": 2.7157}, {"term": "2018", "class": "General Computer Science", "weight": 2.8416}, {"term": "2019", "class": "General Computer Science", "weight": 2.832}, {"term": "2020", "class": "Computer Vision and Pattern Recognition", "weight": 1.6726}, {"term": "2020", "class": "General Computer Science", "weight": 2.72}, {"term": "2021", "class": "Computer Vision and Pattern Recognition", "weight": 2.5097}, {"term": "2021", "class": "General Computer Science", "weight": 2.3415}, {"term": "2022", "class": "Computer Vision and Pattern Recognition", "weight": 2.6624}, {"term": "2022", "class": "General Computer Science", "weight": 1.6692}, {"term": "2023", "class": "Computer Vision and Pattern Recognition", "weight": 2.6947}, {"term": "2023", "class": "General Computer Science", "weight": 1.5171}, {"term": "2024", "class": "Computer Science Applications", "weight": 7.1114}, {"term": "2024", "class": "Computer Vision and Pattern Recognition", "weight": 2.3186}, {"term": "2024 ieee", "class": "Computer Science Applications", "weight": 2.264}, {"term": "2024 ieee", "class": "Computer Vision and Pattern Recognition", "weight": 0.7497}, {"term": "2025", "class": "Artificial Intelligence", "weight": 3.5424}, {"term": "2025", "class": "Computer Networks and Communications", "weight": 2.8045}, {"term": "2025", "class": "Computer software", "weight": 2.9501}, {"term": "2025", "class": "Computer vision", "weight": 3.6443}, {"term": "2025", "class": "Human-Computer Interaction", "weight": 1.8442}, {"term": "2025 acm", "class": "Computer vision", "weight": 1.4538}, {"term": "2025 acm", "class": "Human-Computer Interaction", "weight": 1.4064}, {"term": "2025 author", "class": "Artificial Intelligence", "weight": 3.5755}, {"term": "2025 author", "class": "Computer vision", "weight": 2.4781}, {"term": "2025 author", "class": "Human-Computer Interaction", "weight": 1.2608}, {"term": "2025 elsevier", "class": "Artificial Intelligence", "weight": 1.5598}, {"term": "2025 elsevier", "class": "Computer vision", "weight": 2.355}, {"term": "2025 elsevier", "class": "Human-Computer Interaction", "weight": 1.032}, {"term": "2025 ieee", "class": "Computer Networks and Communications", "weight": 1.6457}, {"term": "2025 ieee", "class": "Computer Science Applications", "weight": 2.6009}, {"term": "2025 ieee", "class": "Computer Vision and Pattern Recognition", "weight": 1.6932}, {"term": "2025 ieee", "class": "Computer software", "weight": 3.9712}, {"term": "2025 index", "class": "Artificial Intelligence", "weight": 1.9645}, {"term": "2025 spie", "class": "Computer vision", "weight": 1.9354}, {"term": "2025 the", "class": "Artificial Intelligence", "weight": 1.9969}, {"term": "2025 the", "class": "Computer vision", "weight": 2.1547}, {"term": "ai", "class": "Artificial Intelligence", "weight": 1.5736}, {"term": "aided", "class": "Computer Graphics and Computer-Aided Design", "weight": 7.2037}, {"term": "aided design", "class": "Computer Graphics and Computer-Aided Design", "weight": 5.7734}, {"term": "application", "class": "Computer Science Applications", "weight": 6.031}, {"term": "applications", "class": "Computer Science Applications", "weight": 7.5115}, {"term": "artificial", "class": "Artificial Intelligence", "weight": 5.6907}, {"term": "artificial intelligence", "class": "Artificial Intelligence", "weight": 6.4086}, {"term": "author 2025", "class": "Artificial Intelligence", "weight": 4.095}, {"term": "author author", "class": "Computer vision", "weight": 0.9391}, {"term": "author author", "class": "Human-Computer Interaction", "weight": 1.7158}, {"term": "bifurcation", "class": "Computational Theory AND Mathematics", "weight": 1.8936}, {"term": "cad", "class": "Computer Graphics and Computer-Aided Design", "weight": 3.5447}, {"term": "combinatorial mathematics", "class": "Computational Theory AND Mathematics", "weight": 1.6491}, {"term": "communication", "class": "Computer Networks and Communications", "weight": 11.809}, {"term": "communications", "class": "Computer Networks and Communications", "weight": 3.8615}, {"term": "computation theory", "class": "Computational Theory AND Mathematics", "weight": 1.9802}, {"term": "computational", "class": "Computational Theory AND Mathematics", "weight": 7.6465}, {"term": "computational complexity", "class": "Computational Theory AND Mathematics", "weight": 1.9385}, {"term": "computer aided", "class": "Computer Graphics and Computer-Aided Design", "weight": 7.4125}, {"term": "computer graphics", "class": "Computer Graphics and Computer-Aided Design", "weight": 3.356}, {"term": "computer interaction", "class": "Human-Computer Interaction", "weight": 7.2153}, {"term": "computer networks", "class": "Computer Networks and Communications", "weight": 1.7705}, {"term": "computer science", "class": "Computer Science Applications", "weight": 4.6133}, {"term": "computer science", "class": "General Computer Science", "weight": 4.1541}, {"term": "computer software", "class": "Computer software", "weight": 17.2689}, {"term": "computer systems", "class": "Computer Networks and Communications", "weight": 2.1592}, {"term": "computer vision", "class": "Computer Vision and Pattern Recognition", "weight": 4.5197}, {"term": "computer vision", "class": "Computer vision", "weight": 7.759}, {"term": "design", "class": "Computer Graphics and Computer-Aided Design", "weight": 5.6246}, {"term": "distributed", "class": "Computer Networks and Communications", "weight": 1.6673}, {"term": "distributed computer", "class": "Computer Networks and Communications", "weight": 2.2481}, {"term": "general", "class": "General Computer Science", "weight": 18.5908}, {"term": "graph based", "class": "Computer Graphics and Computer-Aided Design", "weight": 1.7418}, {"term": "graphic", "class": "Computer Graphics and Computer-Aided Design", "weight": 4.308}, {"term": "graphic methods", "class": "Computer Graphics and Computer-Aided Design", "weight": 2.1765}, {"term": "graphics", "class": "Computer Graphics and Computer-Aided Design", "weight": 6.2609}, {"term": "human", "class": "Human-Computer Interaction", "weight": 3.9154}, {"term": "human computer", "class": "Human-Computer Interaction", "weight": 7.7327}, {"term": "ieee", "class": "Computer Science Applications", "weight": 1.4873}, {"term": "ieee", "class": "Computer Vision and Pattern Recognition", "weight": 2.7982}, {"term": "ieee", "class": "Computer software", "weight": 1.5078}, {"term": "ieee author", "class": "Computer Science Applications", "weight": 1.3622}, {"term": "ieee author", "class": "Computer Vision and Pattern Recognition", "weight": 2.6153}, {"term": "ieee author", "class": "Computer software", "weight": 1.4668}, {"term": "in general", "class": "General Computer Science", "weight": 4.5996}, {"term": "intelligence", "class": "Artificial Intelligence", "weight": 5.6637}, {"term": "interaction", "class": "Human-Computer Interaction", "weight": 5.9057}, {"term": "interaction human", "class": "Human-Computer Interaction", "weight": 4.6647}, {"term": "java", "class": "Computer software", "weight": 1.8351}, {"term": "keywords computer", "class": "Computer software", "weight": 2.3059}, {"term": "mathematics", "class": "Computational Theory AND Mathematics", "weight": 11.1199}, {"term": "network", "class": "Computer Networks and Communications", "weight": 5.4204}, {"term": "networks", "class": "Computer Networks and Communications", "weight": 4.2278}, {"term": "pattern", "class": "Computer Vision and Pattern Recognition", "weight": 7.4793}, {"term": "pattern recognition", "class": "Computer Vision and Pattern Recognition", "weight": 7.6722}, {"term": "patterns", "class": "Computer Vision and Pattern Recognition", "weight": 6.9799}, {"term": "python", "class": "Computer software", "weight": 4.0581}, {"term": "real", "class": "Human-Computer Interaction", "weight": 1.6762}, {"term": "real world", "class": "Human-Computer Interaction", "weight": 3.0033}, {"term": "recognition", "class": "Computer Vision and Pattern Recognition", "weight": 8.6202}, {"term": "science", "class": "Computer Science Applications", "weight": 12.4019}, {"term": "science", "class": "General Computer Science", "weight": 7.7581}, {"term": "science and", "class": "Computer Science Applications", "weight": 2.4173}, {"term": "sciences", "class": "Computer Science Applications", "weight": 4.053}, {"term": "sciences", "class": "General Computer Science", "weight": 2.0469}, {"term": "sciences computing", "class": "Computer Science Applications", "weight": 2.7876}, {"term": "simulation", "class": "Computer software", "weight": 2.6025}, {"term": "software", "class": "Computer software", "weight": 11.278}, {"term": "software curricula", "class": "Computer software", "weight": 1.6478}, {"term": "software data", "class": "Computer software", "weight": 2.0796}, {"term": "spie", "class": "Computer vision", "weight": 2.0709}, {"term": "spie author", "class": "Computer vision", "weight": 1.9857}, {"term": "the author", "class": "Artificial Intelligence", "weight": 2.8078}, {"term": "the general", "class": "General Computer Science", "weight": 3.5098}, {"term": "theory", "class": "Computational Theory AND Mathematics", "weight": 6.6581}, {"term": "tree", "class": "Computational Theory AND Mathematics", "weight": 2.2372}, {"term": "trees", "class": "Computational Theory AND Mathematics", "weight": 3.5034}, {"term": "trees mathematics", "class": "Computational Theory AND Mathematics", "weight": 4.0822}, {"term": "vision", "class": "Computer Vision and Pattern Recognition", "weight": 5.9019}, {"term": "vision", "class": "Computer vision", "weight": 11.7429}, {"term": "world", "class": "Human-Computer Interaction", "weight": 1.9822}], "heatmap_terms": ["general", "computer software", "science", "communication", "vision", "software", "mathematics", "computer", "recognition", "computer vision", "human computer", "pattern recognition", "computational", "applications", "pattern", "computer aided", "computer interaction", "aided", "2024", "patterns", "theory", "artificial intelligence", "graphics", "application", "interaction", "aided design", "artificial", "intelligence", "design", "network", "ieee", "ieee author"], "heatmap_matrix": [[-2.136, -4.006, -2.58, -2.005, -13.582, -2.2, -1.932, -1.016, 18.591, -1.292], [-4.024, -1.503, -3.072, -5.245, -4.111, -1.517, 17.269, -2.325, -1.753, -2.1], [-5.218, -3.058, -3.768, -4.104, 12.402, -4.224, -4.219, -3.312, 7.758, -4.177], [-2.873, -1.064, -0.77, 11.809, -3.159, -2.492, -2.342, -4.113, -0.92, -2.786], [-6.584, -1.203, -2.248, -2.743, -1.787, 5.902, -2.396, 11.743, -1.813, -6.092], [-4.236, -1.367, -1.953, -4.086, -2.719, -1.647, 11.278, -2.935, -0.881, -2.823], [-2.502, 11.12, -1.911, -1.979, -2.891, -1.823, -2.386, -0.649, -4.573, -0.784], [-10.577, -3.552, 0.259, 1.121, 1.476, -0.924, 1.082, 0.688, 1.042, -0.189], [-0.547, -0.817, -1.075, -1.248, -2.016, 8.62, -1.041, -4.655, -1.99, -0.391], [-5.926, -1.063, -1.551, -1.898, -1.452, 4.52, -1.757, 7.759, -1.309, -3.528], [-4.862, -0.439, -0.986, -1.17, -0.439, -0.456, -0.973, -4.231, -0.439, 7.733], [-0.697, -0.609, -1.053, -1.666, -2.119, 7.672, -0.667, -5.821, -1.535, -0.353], [-1.112, 7.646, -1.157, -1.044, -1.891, -1.394, -0.695, -0.549, -2.853, -0.327], [-1.24, -0.759, -0.197, -1.263, 7.511, -0.331, -1.562, -1.16, -2.892, -1.219], [-0.55, -0.199, -0.892, -1.643, -1.929, 7.479, -0.817, -6.308, -1.499, -0.358], [-1.246, -1.955, 7.413, -0.711, -1.083, -1.862, -1.779, -1.528, -1.789, -1.775], [-4.974, -0.463, -0.978, -0.926, -0.564, -0.694, -0.899, -4.229, -0.521, 7.215], [-1.18, -1.877, 7.204, -0.669, -1.029, -1.899, -1.76, -1.66, -1.738, -1.768], [-2.234, -1.188, -0.335, -0.467, 7.111, 2.319, -0.732, -2.45, -2.883, -1.253], [-0.464, 0.15, -0.35, -0.883, -0.837, 6.98, -0.346, -4.717, -0.647, -0.521], [-1.445, 6.658, -1.634, -1.169, -1.684, -1.539, -0.966, -0.814, -2.351, -0.225], [6.409, -1.072, -0.812, -2.183, -1.084, -0.789, -0.979, -2.832, -0.453, -1.921], [-0.963, -0.825, 6.261, -0.734, -1.509, -1.329, -2.146, -0.117, -1.234, -0.463], [-1.305, -0.528, -0.133, -0.734, 6.031, -0.468, -1.593, -0.717, -2.521, -0.971], [-3.36, -0.503, -0.569, -1.101, -0.501, -0.397, -0.903, -3.172, -0.32, 5.906], [-0.907, -1.682, 5.773, -0.856, -1.817, -1.996, -1.505, -2.288, -2.111, -1.491], [5.691, -0.879, -0.611, -1.824, -0.723, -0.578, -0.855, -2.416, -0.131, -1.937], [5.664, -0.735, -0.784, -1.81, -1.038, -0.685, -1.177, -2.646, -0.375, -1.961], [-1.001, -0.982, 5.625, -1.221, -0.257, -1.302, -1.014, -1.189, -1.059, -0.454], [-1.339, -0.301, -0.655, 5.42, -0.539, -0.015, -1.086, -0.514, -0.561, -1.414], [-2.925, -0.008, 0.628, -0.676, 1.487, 2.798, 1.508, -5.362, 0.127, -2.683], [-2.895, -0.168, 0.422, -0.408, 1.362, 2.615, 1.467, -4.952, 0.512, -2.616]], "class_similarity": [[1.0, 0.0, 0.0, 0.026, 0.0, 0.0, 0.013, 0.127, 0.0, 0.067], [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.026, 0.0, 0.0, 1.0, 0.026, 0.013, 0.039, 0.026, 0.026, 0.013], [0.0, 0.0, 0.0, 0.026, 1.0, 0.067, 0.067, 0.0, 0.053, 0.0], [0.0, 0.0, 0.0, 0.013, 0.067, 1.0, 0.039, 0.026, 0.081, 0.0], [0.013, 0.0, 0.0, 0.039, 0.067, 0.039, 1.0, 0.013, 0.013, 0.013], [0.127, 0.0, 0.0, 0.026, 0.0, 0.026, 0.013, 1.0, 0.0, 0.127], [0.0, 0.0, 0.0, 0.026, 0.053, 0.081, 0.013, 0.0, 1.0, 0.0], [0.067, 0.0, 0.0, 0.013, 0.0, 0.0, 0.013, 0.127, 0.0, 1.0]], "model_params": {"ngram_range": [1, 2], "max_features": 50000, "min_df": 2, "sublinear_tf": true, "algorithm": "LinearSVC (one-vs-rest)", "n_classes": 10, "vocab_size": 50000}, "class_similarity_method": "Jaccard overlap of top-40 class-defining terms"};
+const CLASSES = DATA.classes;
+const CLASS_COLORS = ["#9A4023","#2F5C52","#93641C","#3C5D6E","#5C4066","#9C3325","#4E6B28","#9A4E68","#296E80","#7A5D1A"];
+const classColor = d3.scaleOrdinal().domain(CLASSES).range(CLASS_COLORS);
+
+function fmt(n){ return n.toLocaleString('en-US'); }
+
+/* ============================================================
+   1. HEATMAP
+   ============================================================ */
+(function heatmap(){
+  const rawTerms = DATA.heatmap_terms;
+  const rawMatrix = DATA.heatmap_matrix; // terms x classes
+
+  // group rows by their dominant (highest-weight) class, then sort by that weight, desc
+  let rows = rawTerms.map((term, i) => {
+    const vals = rawMatrix[i];
+    let topIdx = 0;
+    vals.forEach((v, ci) => { if (v > vals[topIdx]) topIdx = ci; });
+    return { term, vals, topIdx };
+  });
+  rows.sort((a, b) => a.topIdx - b.topIdx || b.vals[b.topIdx] - a.vals[a.topIdx]);
+
+  const terms = rows.map(r => r.term);
+  const matrix = rows.map(r => r.vals);
+
+  document.getElementById('heatCount').textContent = `${terms.length} terms × ${CLASSES.length} classes · grouped by dominant class`;
+
+  const margin = {top: 118, right: 24, bottom: 10, left: 168};
+  const cellW = 84, cellH = 24;
+  const width = CLASSES.length * cellW;
+  const height = terms.length * cellH;
+
+  const svg = d3.select('#heatmapChart').append('svg')
+    .attr('width', width + margin.left + margin.right)
+    .attr('height', height + margin.top + margin.bottom + 50);
+
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const allVals = matrix.flat();
+  const maxAbs = d3.max(allVals, Math.abs);
+  const color = d3.scaleLinear()
+    .domain([-maxAbs, -maxAbs*0.15, 0, maxAbs*0.15, maxAbs])
+    .range(['#2F5C52', '#B7CFC7', '#F3EEDD', '#E5BFA6', '#9A4023'])
+    .clamp(true);
+
+  // dominant-class group divider lines + left color tags
+  let prevIdx = -1;
+  rows.forEach((r, ri) => {
+    if (r.topIdx !== prevIdx){
+      if (ri > 0){
+        g.append('line')
+          .attr('x1', -6).attr('x2', width)
+          .attr('y1', ri*cellH).attr('y2', ri*cellH)
+          .attr('stroke', 'var(--hairline)').attr('stroke-width', 1.5);
+      }
+      prevIdx = r.topIdx;
+    }
+  });
+
+  // left edge class-color tag per row
+  g.selectAll('.row-tag')
+    .data(rows).enter().append('rect')
+    .attr('x', -6).attr('y', (d,i)=>i*cellH+2)
+    .attr('width', 4).attr('height', cellH-4)
+    .attr('fill', d => classColor(CLASSES[d.topIdx]));
+
+  // column header swatches
+  g.selectAll('.col-swatch')
+    .data(CLASSES).enter().append('rect')
+    .attr('x', (d,i) => i*cellW + cellW/2 - 5)
+    .attr('y', -96)
+    .attr('width', 10).attr('height', 10)
+    .attr('rx', 2)
+    .attr('fill', d => classColor(d));
+
+  // column labels (rotated)
+  g.selectAll('.col-label')
+    .data(CLASSES).enter().append('text')
+    .attr('class', 'axis')
+    .style('font-size', '12px')
+    .attr('x', (d,i) => i*cellW + cellW/2 + 4)
+    .attr('y', -80)
+    .attr('text-anchor', 'start')
+    .attr('transform', (d,i) => `rotate(-34, ${i*cellW + cellW/2 + 4}, -80)`)
+    .text(d => d.length > 30 ? d.slice(0,28)+'…' : d);
+
+  // row labels
+  g.selectAll('.row-label')
+    .data(terms).enter().append('text')
+    .attr('class', 'axis')
+    .style('font-size', '12px')
+    .style('font-family', "'IBM Plex Mono', monospace")
+    .attr('x', -14)
+    .attr('y', (d,i) => i*cellH + cellH/2 + 4)
+    .attr('text-anchor', 'end')
+    .text(d => d);
+
+  // cells
+  terms.forEach((term, ri) => {
+    matrix[ri].forEach((val, ci) => {
+      g.append('rect')
+        .attr('class', 'heat-cell')
+        .attr('x', ci*cellW).attr('y', ri*cellH)
+        .attr('width', cellW-2).attr('height', cellH-2)
+        .attr('rx', 2)
+        .attr('fill', color(val))
+        .on('mousemove', (event) => {
+          const tip = d3.select('#heatTooltip');
+          tip.style('opacity', 1)
+            .style('left', (event.pageX + 14) + 'px')
+            .style('top', (event.pageY - 10) + 'px')
+            .html(`<b>${term}</b><br>${CLASSES[ci]}<br>weight <b>${val.toFixed(3)}</b>`);
+        })
+        .on('mouseleave', () => d3.select('#heatTooltip').style('opacity', 0));
+      // annotate strongly-loaded cells with their number
+      if (Math.abs(val) >= maxAbs*0.42){
+        g.append('text')
+          .attr('x', ci*cellW + (cellW-2)/2)
+          .attr('y', ri*cellH + cellH/2 + 4)
+          .attr('text-anchor', 'middle')
+          .style('font-family', "'IBM Plex Mono', monospace")
+          .style('font-size', '10px')
+          .style('font-weight', '600')
+          .style('pointer-events', 'none')
+          .style('fill', Math.abs(val) >= maxAbs*0.62 ? '#FFFFFF' : 'var(--ink-text)')
+          .text(val.toFixed(1));
+      }
+    });
+  });
+
+  // legend
+  const legendW = 260, legendH = 12;
+  const lg = svg.append('g').attr('transform', `translate(${margin.left}, ${margin.top + height + 30})`);
+  const defs = svg.append('defs');
+  const gradient = defs.append('linearGradient').attr('id','heatGrad');
+  [-1, -0.15, 0, 0.15, 1].forEach(t => {
+    gradient.append('stop').attr('offset', `${(t+1)/2*100}%`).attr('stop-color', color(t*maxAbs));
+  });
+  lg.append('rect').attr('width', legendW).attr('height', legendH).attr('rx',2).style('fill','url(#heatGrad)').style('stroke','var(--hairline)');
+  lg.append('text').attr('x',0).attr('y',30).style('font-family',"'IBM Plex Mono', monospace").style('font-size','11px').style('fill','var(--faint-on-dark)').text(`← pushes away  (${(-maxAbs).toFixed(1)})`);
+  lg.append('text').attr('x',legendW/2).attr('y',30).attr('text-anchor','middle').style('font-family',"'IBM Plex Mono', monospace").style('font-size','11px').style('fill','var(--faint-on-dark)').text('0');
+  lg.append('text').attr('x',legendW).attr('y',30).attr('text-anchor','end').style('font-family',"'IBM Plex Mono', monospace").style('font-size','11px').style('fill','var(--faint-on-dark)').text(`pushes toward →  (+${maxAbs.toFixed(1)})`);
+})();
+
+/* ============================================================
+   2. ARC DIAGRAM (class similarity)
+   ============================================================ */
+(function arcDiagram(){
+  const sim = DATA.class_similarity;
+  document.getElementById('simCount').textContent = DATA.class_similarity_method || 'Jaccard overlap';
+
+  const width = 1120, height = 430;
+  const margin = {left: 40, right: 40};
+  const nodeY = 340;
+  const n = CLASSES.length;
+  const xScale = d3.scalePoint().domain(d3.range(n)).range([margin.left, width - margin.right]).padding(0.5);
+
+  const svg = d3.select('#arcChart').append('svg').attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`).attr('preserveAspectRatio','xMidYMid meet');
+
+  // collect pairs with sim>0
+  let pairs = [];
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++) if(sim[i][j] > 0) pairs.push({i,j,v:sim[i][j]});
+  const maxV = d3.max(pairs, p=>p.v) || 1;
+  const widthScale = d3.scaleLinear().domain([0, maxV]).range([0.6, 7]);
+  const opacScale = d3.scaleLinear().domain([0, maxV]).range([0.15, 0.85]);
+
+  svg.selectAll('.arc-path')
+    .data(pairs).enter().append('path')
+    .attr('class','arc-path')
+    .attr('d', p => {
+      const x1 = xScale(p.i), x2 = xScale(p.j);
+      const dx = Math.abs(x2-x1);
+      const midY = nodeY - dx*0.42;
+      return `M ${x1} ${nodeY} Q ${(x1+x2)/2} ${midY} ${x2} ${nodeY}`;
+    })
+    .attr('stroke', p => classColor(CLASSES[p.i]))
+    .attr('stroke-width', p => widthScale(p.v))
+    .attr('stroke-opacity', p => opacScale(p.v))
+    .on('mousemove', (event, p) => {
+      d3.select('#arcTooltip').style('opacity',1)
+        .style('left',(event.pageX+14)+'px').style('top',(event.pageY-10)+'px')
+        .html(`<b>${CLASSES[p.i]}</b><br>×<br><b>${CLASSES[p.j]}</b><br>overlap <b>${(p.v*100).toFixed(1)}%</b>`);
+    })
+    .on('mouseleave', ()=> d3.select('#arcTooltip').style('opacity',0));
+
+  const nodeG = svg.selectAll('.arc-node').data(CLASSES).enter().append('g')
+    .attr('transform', (d,i) => `translate(${xScale(i)}, ${nodeY})`);
+
+  nodeG.append('circle')
+    .attr('class','arc-node-dot')
+    .attr('r', 7)
+    .attr('fill', d => classColor(d))
+    .on('mousemove', (event,d) => {
+      d3.select('#arcTooltip').style('opacity',1)
+        .style('left',(event.pageX+14)+'px').style('top',(event.pageY-10)+'px')
+        .html(`<b>${d}</b>`);
+    })
+    .on('mouseleave', ()=> d3.select('#arcTooltip').style('opacity',0));
+
+  nodeG.append('text')
+    .attr('class','arc-node-label')
+    .attr('transform', 'rotate(38)')
+    .attr('x', 10).attr('y', 4)
+    .text(d => d);
+})();
+
+/* ============================================================
+   3. FORCE NETWORK (term - class)
+   ============================================================ */
+let netSimulation, netSvg, netG, netZoom;
+(function network(){
+  const container = document.getElementById('networkChart');
+  const width = 1120, height = 620;
+
+  netSvg = d3.select('#networkChart').append('svg').attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`).attr('preserveAspectRatio','xMidYMid meet');
+  netG = netSvg.append('g');
+
+  netZoom = d3.zoom().scaleExtent([0.3, 4]).on('zoom', (event) => {
+    netG.attr('transform', event.transform);
+  });
+  netSvg.call(netZoom);
+
+  document.getElementById('zoomIn').onclick = () => netSvg.transition().call(netZoom.scaleBy, 1.3);
+  document.getElementById('zoomOut').onclick = () => netSvg.transition().call(netZoom.scaleBy, 0.75);
+  document.getElementById('zoomReset').onclick = () => netSvg.transition().call(netZoom.transform, d3.zoomIdentity);
+
+  const idfExtent = d3.extent(DATA.term_nodes, d => d.idf);
+  const weightExtent = d3.extent(DATA.term_nodes, d => d.weight);
+  const termRadius = d3.scaleSqrt().domain(weightExtent).range([4, 15]);
+
+  const linkG = netG.append('g').attr('class','links');
+  const nodeG = netG.append('g').attr('class','nodes');
+  const labelG = netG.append('g').attr('class','labels');
+
+  let linkSel, classNodeSel, termNodeSel, termLabelSel, classLabelSel;
+
+  const classNodes = CLASSES.map((c,i) => ({ id: 'CLS::'+c, type:'class', name:c, idx:i }));
+  const termNodesAll = DATA.term_nodes.map(t => ({ id: 'TRM::'+t.term, type:'term', ...t }));
+  const allNodesById = {};
+  [...classNodes, ...termNodesAll].forEach(n => allNodesById[n.id] = n);
+
+  function buildEdges(threshold){
+    return DATA.edges
+      .filter(e => e.weight >= threshold)
+      .map(e => ({ source: 'TRM::'+e.term, target: 'CLS::'+e.class, weight: e.weight }));
+  }
+
+  function render(threshold){
+    const links = buildEdges(threshold);
+    const connectedTermIds = new Set(links.map(l => l.source));
+    const activeTerms = termNodesAll.filter(t => connectedTermIds.has(t.id));
+    const nodes = [...classNodes.map(d=>({...d})), ...activeTerms.map(d=>({...d}))];
+    const nodeById = {}; nodes.forEach(n=>nodeById[n.id]=n);
+    const resolvedLinks = links.map(l => ({source: nodeById[l.source], target: nodeById[l.target], weight: l.weight})).filter(l=>l.source&&l.target);
+
+    document.getElementById('netCount').textContent = `${activeTerms.length} terms · ${resolvedLinks.length} edges`;
+
+    if(netSimulation) netSimulation.stop();
+
+    netSimulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(resolvedLinks).id(d=>d.id).distance(l => 90 - Math.min(l.weight,10)*4).strength(0.5))
+      .force('charge', d3.forceManyBody().strength(d => d.type==='class' ? -420 : -60))
+      .force('center', d3.forceCenter(width/2, height/2))
+      .force('collide', d3.forceCollide().radius(d => d.type==='class' ? 46 : termRadius(d.weight)+4))
+      .on('tick', ticked);
+
+    linkSel = linkG.selectAll('line').data(resolvedLinks, d => d.source.id+'-'+d.target.id);
+    linkSel.exit().remove();
+    linkSel = linkSel.enter().append('line')
+      .attr('class','net-link')
+      .attr('stroke', d => classColor(d.target.name))
+      .attr('stroke-width', d => Math.max(0.6, d.weight/3))
+      .merge(linkSel);
+
+    termNodeSel = nodeG.selectAll('circle.net-node-term').data(nodes.filter(d=>d.type==='term'), d=>d.id);
+    termNodeSel.exit().remove();
+    termNodeSel = termNodeSel.enter().append('circle')
+      .attr('class','net-node-term')
+      .attr('r', d => termRadius(d.weight))
+      .attr('fill', d => classColor(d.top_class))
+      .attr('fill-opacity', 0.85)
+      .on('click', (event,d) => showDetail(d))
+      .on('mousemove', (event,d) => {
+        d3.select('#netTooltip').style('opacity',1)
+          .style('left',(event.pageX+14)+'px').style('top',(event.pageY-10)+'px')
+          .html(`<b>${d.term}</b><br>${d.top_class}<br>weight ${d.weight}`);
+      })
+      .on('mouseleave', ()=> d3.select('#netTooltip').style('opacity',0))
+      .call(drag(netSimulation))
+      .merge(termNodeSel);
+
+    classNodeSel = nodeG.selectAll('circle.net-node-class').data(nodes.filter(d=>d.type==='class'), d=>d.id);
+    classNodeSel.exit().remove();
+    classNodeSel = classNodeSel.enter().append('circle')
+      .attr('class','net-node-class')
+      .attr('r', 30)
+      .attr('fill', d => classColor(d.name))
+      .on('click', (event,d) => showDetail(d))
+      .on('mousemove', (event,d) => {
+        d3.select('#netTooltip').style('opacity',1)
+          .style('left',(event.pageX+14)+'px').style('top',(event.pageY-10)+'px')
+          .html(`<b>${d.name}</b>`);
+      })
+      .on('mouseleave', ()=> d3.select('#netTooltip').style('opacity',0))
+      .call(drag(netSimulation))
+      .merge(classNodeSel);
+
+    classLabelSel = labelG.selectAll('text.net-label-class').data(nodes.filter(d=>d.type==='class'), d=>d.id);
+    classLabelSel.exit().remove();
+    classLabelSel = classLabelSel.enter().append('text')
+      .attr('class','net-label-class')
+      .attr('font-size', 11)
+      .attr('fill', '#FFFFFF')
+      .attr('text-anchor','middle')
+      .attr('dy', 4)
+      .text(d => d.name.length > 16 ? d.name.slice(0,14)+'…' : d.name)
+      .merge(classLabelSel);
+
+    function ticked(){
+      linkSel.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+      termNodeSel.attr('cx', d=>d.x).attr('cy', d=>d.y);
+      classNodeSel.attr('cx', d=>d.x).attr('cy', d=>d.y);
+      classLabelSel.attr('x', d=>d.x).attr('y', d=>d.y);
+    }
+  }
+
+  function drag(simulation){
+    function started(event,d){ if(!event.active) simulation.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; }
+    function dragged(event,d){ d.fx=event.x; d.fy=event.y; }
+    function ended(event,d){ if(!event.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }
+    return d3.drag().on('start',started).on('drag',dragged).on('end',ended);
+  }
+
+  function showDetail(d){
+    const panel = document.getElementById('detailPanel');
+    document.getElementById('detailTitle').textContent = d.type==='class' ? d.name : d.term;
+    let body = '';
+    if(d.type === 'term'){
+      body += `<div class="row"><span>Top class</span><span>${d.top_class}</span></div>`;
+      body += `<div class="row"><span>Weight</span><span>${d.weight}</span></div>`;
+      body += `<div class="row"><span>Exclusivity</span><span>${d.exclusivity}</span></div>`;
+      body += `<div class="row"><span>IDF</span><span>${d.idf}</span></div>`;
+    } else {
+      const relatedTerms = DATA.term_nodes.filter(t=>t.top_class===d.name).sort((a,b)=>b.weight-a.weight).slice(0,6);
+      relatedTerms.forEach(t => body += `<div class="row"><span>${t.term}</span><span>${t.weight}</span></div>`);
+    }
+    document.getElementById('detailBody').innerHTML = body;
+    panel.classList.add('show');
+  }
+  document.getElementById('detailClose').onclick = () => document.getElementById('detailPanel').classList.remove('show');
+
+  const slider = document.getElementById('threshSlider');
+  const threshVal = document.getElementById('threshVal');
+  slider.addEventListener('input', () => {
+    threshVal.textContent = parseFloat(slider.value).toFixed(1);
+    render(parseFloat(slider.value));
+  });
+
+  // legend
+  const legend = document.getElementById('netLegend');
+  legend.innerHTML = CLASSES.map(c => `<span><span class="sw" style="background:${classColor(c)}"></span>${c}</span>`).join('');
+
+  render(parseFloat(slider.value));
+})();
+
+/* ============================================================
+   4. QUADRANT
+   ============================================================ */
+(function quadrant(){
+  const data = DATA.term_nodes;
+  document.getElementById('quadCount').textContent = `${data.length} terms`;
+
+  const width = 1120, height = 560;
+  const margin = {top: 30, right: 30, bottom: 56, left: 60};
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  const svg = d3.select('#quadrantChart').append('svg').attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`).attr('preserveAspectRatio','xMidYMid meet');
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleLinear().domain([0, d3.max(data, d=>d.weight)*1.05]).range([0, innerW]);
+  const y = d3.scaleLinear().domain([0, d3.max(data, d=>d.exclusivity)*1.08]).range([innerH, 0]);
+  const idfExtent = d3.extent(data, d=>d.idf);
+  const r = d3.scaleSqrt().domain(idfExtent).range([12, 4]); // lower idf (common) -> bigger? we invert: rarer=bigger
+  const rInv = d3.scaleSqrt().domain(idfExtent).range([5, 15]);
+
+  const xMid = d3.mean(x.domain());
+  const yMid = d3.mean(y.domain());
+
+  g.append('line').attr('class','quad-line').attr('x1',0).attr('x2',innerW).attr('y1',y(d3.mean([0,d3.max(data,d=>d.exclusivity)]))).attr('y2',y(d3.mean([0,d3.max(data,d=>d.exclusivity)])));
+  g.append('line').attr('class','quad-line').attr('y1',0).attr('y2',innerH).attr('x1',x(d3.mean([0,d3.max(data,d=>d.weight)]))).attr('x2',x(d3.mean([0,d3.max(data,d=>d.weight)])));
+
+  g.append('text').attr('class','quad-label').attr('x', innerW-4).attr('y', 14).attr('text-anchor','end').text('STRONG & EXCLUSIVE →');
+  g.append('text').attr('class','quad-label').attr('x', 4).attr('y', innerH-6).text('← weak & shared');
+
+  g.append('g').attr('transform',`translate(0,${innerH})`).call(d3.axisBottom(x).ticks(6))
+    .call(sel => sel.selectAll('text').attr('fill','var(--muted-on-dark)').attr('font-family','IBM Plex Mono'))
+    .call(sel => sel.selectAll('line,path').attr('stroke','#C7BC9C'));
+  g.append('g').call(d3.axisLeft(y).ticks(6))
+    .call(sel => sel.selectAll('text').attr('fill','var(--muted-on-dark)').attr('font-family','IBM Plex Mono'))
+    .call(sel => sel.selectAll('line,path').attr('stroke','#C7BC9C'));
+
+  g.append('text').attr('class','axis-label').attr('x', innerW/2).attr('y', innerH+42).attr('text-anchor','middle').style('fill','var(--faint-on-dark)').text('แรงผลักดันของคำต่อสาขา (weight) →');
+  g.append('text').attr('class','axis-label').attr('transform',`translate(-42,${innerH/2}) rotate(-90)`).attr('text-anchor','middle').style('fill','var(--faint-on-dark)').text('ความเฉพาะสาย (exclusivity) →');
+
+  g.selectAll('.quad-dot').data(data).enter().append('circle')
+    .attr('class','quad-dot')
+    .attr('cx', d=>x(d.weight)).attr('cy', d=>y(d.exclusivity))
+    .attr('r', d=>rInv(d.idf))
+    .attr('fill', d=>classColor(d.top_class))
+    .attr('fill-opacity', 0.78)
+    .attr('stroke', '#14110D').attr('stroke-width', 1)
+    .on('mousemove', (event,d) => {
+      d3.select('#quadTooltip').style('opacity',1)
+        .style('left',(event.pageX+14)+'px').style('top',(event.pageY-10)+'px')
+        .html(`<b>${d.term}</b><br>${d.top_class}<br>weight ${d.weight} · exclusivity ${d.exclusivity}<br>idf ${d.idf}`);
+    })
+    .on('mouseleave', ()=> d3.select('#quadTooltip').style('opacity',0));
+})();
+</script>
+</body>
+</html>

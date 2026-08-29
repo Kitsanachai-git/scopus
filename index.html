@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Science Projects</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #07111f;
+            --bg2: #0b1830;
+            --card: rgba(15, 28, 49, .72);
+            --card-border: rgba(255,255,255,.10);
+            --text: #f4f7fb;
+            --muted: #9aa9bf;
+            --blue: #55a7ff;
+            --purple: #9b7cff;
+            --cyan: #42e8dc;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: "Kanit", sans-serif;
+            background:
+                radial-gradient(circle at 15% 10%, rgba(85,167,255,.18), transparent 30%),
+                radial-gradient(circle at 85% 20%, rgba(155,124,255,.17), transparent 28%),
+                radial-gradient(circle at 50% 100%, rgba(66,232,220,.10), transparent 32%),
+                linear-gradient(135deg, var(--bg), var(--bg2));
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: .35;
+            background-image:
+                linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+            background-size: 42px 42px;
+        }
+
+        .container {
+            width: min(1100px, calc(100% - 40px));
+            margin: auto;
+        }
+
+        header {
+            padding: 85px 0 45px;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            border: 1px solid rgba(85,167,255,.25);
+            border-radius: 999px;
+            background: rgba(85,167,255,.08);
+            color: #a9d2ff;
+            font-family: "Space Grotesk", sans-serif;
+            font-size: 13px;
+            letter-spacing: .5px;
+        }
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--cyan);
+            box-shadow: 0 0 14px var(--cyan);
+        }
+
+        h1 {
+            margin: 22px 0 10px;
+            font-family: "Space Grotesk", sans-serif;
+            font-size: clamp(42px, 7vw, 76px);
+            line-height: 1;
+            letter-spacing: -3px;
+            background: linear-gradient(100deg, #fff 10%, #9ccaff 48%, #b39aff 90%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .subtitle {
+            margin: 0 auto;
+            max-width: 650px;
+            color: var(--muted);
+            font-size: 18px;
+            font-weight: 300;
+        }
+
+        .projects {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            padding: 20px 0 80px;
+        }
+
+        .card {
+            position: relative;
+            min-height: 390px;
+            display: flex;
+            flex-direction: column;
+            padding: 32px;
+            text-decoration: none;
+            color: inherit;
+            overflow: hidden;
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            background: linear-gradient(145deg, rgba(20,37,64,.82), rgba(10,21,38,.82));
+            backdrop-filter: blur(18px);
+            box-shadow: 0 24px 70px rgba(0,0,0,.25);
+            transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease;
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            width: 190px;
+            height: 190px;
+            right: -70px;
+            top: -70px;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: .13;
+            filter: blur(5px);
+        }
+
+        .card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 24px;
+            background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.045), transparent 65%);
+            transform: translateX(-100%);
+            transition: transform .7s ease;
+            pointer-events: none;
+        }
+
+        .card:hover {
+            transform: translateY(-9px);
+            border-color: color-mix(in srgb, var(--accent) 45%, white 5%);
+            box-shadow: 0 30px 90px rgba(0,0,0,.4);
+        }
+
+        .card:hover::after {
+            transform: translateX(100%);
+        }
+
+        .card.ml { --accent: #55a7ff; }
+        .card.scopus { --accent: #9b7cff; }
+
+        .number {
+            position: relative;
+            z-index: 1;
+            width: 48px;
+            height: 48px;
+            display: grid;
+            place-items: center;
+            border-radius: 14px;
+            background: color-mix(in srgb, var(--accent) 15%, transparent);
+            border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+            color: var(--accent);
+            font-family: "Space Grotesk", sans-serif;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .icon {
+            position: absolute;
+            right: 30px;
+            top: 30px;
+            font-size: 54px;
+            opacity: .85;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,.25));
+        }
+
+        .card h2 {
+            position: relative;
+            z-index: 1;
+            margin: 48px 0 10px;
+            font-family: "Space Grotesk", sans-serif;
+            font-size: 30px;
+            line-height: 1.15;
+        }
+
+        .card p {
+            position: relative;
+            z-index: 1;
+            margin: 0;
+            color: var(--muted);
+            font-size: 16px;
+            line-height: 1.7;
+        }
+
+        .tags {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 24px;
+        }
+
+        .tag {
+            padding: 6px 11px;
+            border-radius: 8px;
+            background: rgba(255,255,255,.055);
+            border: 1px solid rgba(255,255,255,.07);
+            color: #c4cfdf;
+            font-size: 12px;
+        }
+
+        .open {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: auto;
+            padding-top: 30px;
+            color: var(--accent);
+            font-family: "Space Grotesk", sans-serif;
+            font-weight: 600;
+        }
+
+        .arrow {
+            width: 38px;
+            height: 38px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--accent) 13%, transparent);
+            transition: transform .25s ease;
+        }
+
+        .card:hover .arrow {
+            transform: translateX(5px);
+        }
+
+        footer {
+            padding: 0 0 35px;
+            text-align: center;
+            color: #65758d;
+            font-size: 13px;
+        }
+
+        @media (max-width: 760px) {
+            header { padding-top: 55px; }
+            .projects { grid-template-columns: 1fr; }
+            .card { min-height: 360px; }
+            h1 { letter-spacing: -2px; }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="container">
+        <header>
+            <div class="badge">
+                <span class="dot"></span>
+                Data Science Project Collection
+            </div>
+
+            <h1>My Projects</h1>
+
+            <p class="subtitle">
+                รวมผลงานและการวิเคราะห์ข้อมูลทางด้าน Machine Learning และ EDA - Scopus Data
+            </p>
+        </header>
+
+        <section class="projects">
+            <a class="card ml" href="./thoery/index-theory.html">
+                <div class="number">01</div>
+                <div class="icon">🧠</div>
+
+                <h2>Theory-Machine-Learning</h2>
+
+                <p>
+                    เอกสารและเนื้อหาเกี่ยวกับทฤษฎี Machine Learning
+                    พร้อมแนวคิดและองค์ความรู้ที่เกี่ยวข้อง
+                </p>
+
+                <div class="tags">
+                    <span class="tag">Machine Learning</span>
+                    <span class="tag">Theory</span>
+                    <span class="tag">AI</span>
+                </div>
+
+                <div class="open">
+                    <span>Open Project</span>
+                    <span class="arrow">→</span>
+                </div>
+            </a>
+
+            <a class="card scopus" href="./Scopus/index_Scopus.html"">
+                <div class="number">02</div>
+                <div class="icon">📊</div>
+
+                <h2>EDA - Scopus Data</h2>
+
+                <p>
+                    Exploratory Data Analysis จากข้อมูล Scopus
+                    สำหรับสำรวจรูปแบบ ความสัมพันธ์ และภาพรวมของข้อมูล
+                </p>
+
+                <div class="tags">
+                    <span class="tag">EDA</span>
+                    <span class="tag">Scopus</span>
+                    <span class="tag">Data Analysis</span>
+                </div>
+
+                <div class="open">
+                    <span>Open Project</span>
+                    <span class="arrow">→</span>
+                </div>
+            </a>
+        </section>
+
+        <footer>
+            © 2026 Project
+        </footer>
+    </main>
+</body>
+</html>

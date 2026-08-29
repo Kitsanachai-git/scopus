@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Term–Class Network Analytics — Subject Classifier</title>
+<title>Keyword Trend &amp; Thematic Analytics — Scopus CS Literature</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -282,74 +282,75 @@
 <div class="wrap">
 
   <header class="masthead">
-    <div class="eyebrow">Model Introspection · No. 002</div>
-    <h1 class="title">Term–Class <em>Network Analytics</em></h1>
+    <div class="eyebrow">Bibliometric Analytics · No. 003</div>
+    <h1 class="title">Keyword Trend &amp; <em>Thematic Analytics</em></h1>
     <p class="dek">
-      Adapted from a keyword co-occurrence dashboard built for real Scopus documents. This model came with no
-      document corpus attached — only the trained TF-IDF + LinearSVC pipeline — so every view below is rebuilt
-      from what the classifier itself encodes: vocabulary, IDF, and per-class decision coefficients.
+      วิเคราะห์แนวโน้มคำสำคัญของบทความ Scopus สาย Computer Science จริง 36,069 บทความ (ปี 2000–2025)
+      โดยแบ่งสาขาด้วยผลทำนายของโมเดล TF‑IDF + LinearSVC ที่เทรนไว้ ผสมกับข้อมูลปีตีพิมพ์และคำสำคัญ (Author/Index Keywords)
+      ของบทความจริง เพื่อดูว่าคำไหนกำลังมา คำไหนกำลังซา และธีมงานวิจัยเคลื่อนไปทางไหน
     </p>
     <div class="note-box">
-      <b>วิธีการที่ใช้จริงในโปรเจกต์นี้.</b> ทุกภาพด้านล่างสร้างจากการ introspect โมเดล
-      <code>subject_classifier.joblib</code> ตัวเดียวกันที่ใช้จำแนกบทความ Scopus จริง (36,069 บทความ 10 สาขา):
-      <code>TfidfVectorizer</code> (max_features=50,000, ngram 1–2, min_df=2, sublinear_tf) ต่อด้วย
-      <code>LinearSVC</code> (one‑vs‑rest, C=1.0) ค่าตัวเลขทั้งหมดคือ <b>coefficient ของ LinearSVC</b> และ
-      <b>IDF ของ TF‑IDF</b> ที่ดึงออกมาตรงจากไฟล์โมเดล ไม่ได้คำนวณจากเอกสารดิบใหม่
+      <b>วิธีการที่ใช้จริงในโปรเจกต์นี้.</b> ข้อมูลมิติเวลา (ปี) และคำสำคัญมาจากบทความ Scopus ดิบตรง ๆ
+      ส่วน <b>สาขาวิชา (สี)</b> ของแต่ละคำ/บทความ มาจากผลทำนายของโมเดล <code>subject_classifier.joblib</code>
+      (<code>TfidfVectorizer</code> ngram 1–2, min_df=2 ต่อด้วย <code>LinearSVC</code> one‑vs‑rest) ซึ่งมี test accuracy
+      ราว 94% — จึงมีโอกาสทำนายผิดสาขาได้ราว 6% ของบทความ นอกจากนี้ <b>ปี 2025 มีจำนวนบทความในข้อมูลสูงผิดปกติ</b>
+      (24,418 จาก 40,000 บทความดิบ) ซึ่งน่าจะมาจากการ index ของ Scopus ที่ยังไม่ครบปี ไม่ใช่บทความตีพิมพ์เพิ่มขึ้นจริงขนาดนั้น
+      ควรตีความแนวโน้มของปี 2024–2025 ด้วยความระมัดระวัง
     </div>
     <nav class="toc">
-      <a href="#heatmap">1. Keyword × Class Weight Heatmap</a>
-      <a href="#similarity">2. Class Similarity Arc Diagram</a>
-      <a href="#network">3. Term–Class Association Network</a>
-      <a href="#quadrant">4. Specificity Quadrant Plot</a>
+      <a href="#trend-heatmap">1. Keyword Trend Heatmap</a>
+      <a href="#thematic-evolution">2. Thematic Evolution</a>
+      <a href="#overlay-network">3. Overlay Network</a>
+      <a href="#emerging-quadrant">4. Emerging Keyword Quadrant</a>
     </nav>
   </header>
 
-  <section class="panel" id="heatmap">
+  <section class="panel" id="trend-heatmap">
     <div class="section-head">
-      <h2><span class="num">01</span> Keyword × Class Weight Heatmap</h2>
+      <h2><span class="num">01</span> Keyword Trend Heatmap</h2>
       <span class="count" id="heatCount"></span>
     </div>
     <p class="section-intro">
-      ตารางแสดงน้ำหนักคำศัพท์ 32 คำเทียบกับ 10 สาขา จัดกลุ่มและเรียงตามสาขาที่คำนั้นผลักดันมากที่สุด
-      แถบสีซ้ายของแต่ละแถวและสวอตช์เหนือแต่ละคอลัมน์ใช้สีสาขาเดียวกัน เพื่อให้ตามรอยคำไปยังสาขาได้ง่าย
-      <b>สีส้ม (โทนร้อน)</b> คือค่าน้ำหนักเป็นบวก ยิ่งสูงยิ่งผลักดันให้โมเดลทายว่าเป็นสาขานั้นทันที
-      <b>สีเขียว (โทนเย็น)</b> คือค่าน้ำหนักเป็นลบ ยิ่งติดลบมากยิ่งลดโอกาสที่จะเป็นสาขานั้น
-      เซลล์ที่มีค่าน้ำหนักสูงสุดจะแสดงตัวเลขกำกับไว้
+      ตารางแสดง<b>สัดส่วนบทความในแต่ละปี</b>ที่มีคำสำคัญ (Author/Index Keywords) นั้นปรากฏอยู่ ไม่ใช่จำนวนดิบ
+      เพื่อไม่ให้ปีที่มีบทความมากกว่า (เช่น 2024–2025) ดูพุ่งเกินจริงเมื่อเทียบกับปีก่อน ๆ ที่มีบทความน้อยกว่า
+      คำถูกเรียงตามความถี่รวมทั้งชุดข้อมูล <b>สีเข้ม (ส้ม/แดง)</b> คือคำนั้นถูกใช้บ่อยในปีนั้นเมื่อเทียบกับบทความทั้งหมดของปี
+      <b>สีจาง</b> คือคำนั้นแทบไม่ถูกใช้เลยในปีนั้น เลื่อนเมาส์ดูค่าสัดส่วนที่แน่นอนได้ที่แต่ละเซลล์
     </p>
     <div class="viz-frame">
       <div id="heatmapChart"></div>
     </div>
   </section>
 
-  <section class="panel" id="similarity">
+  <section class="panel" id="thematic-evolution">
     <div class="section-head">
-      <h2><span class="num">02</span> Class Similarity Arc Diagram</h2>
+      <h2><span class="num">02</span> Thematic Evolution</h2>
       <span class="count" id="simCount"></span>
     </div>
     <p class="section-intro">
-      แผนภูมิเส้นโค้งแสดงความคล้ายกันระหว่างสาขา วัดจาก Jaccard overlap ของคำเด่นอันดับต้น ๆ 40 คำ ของแต่ละสาขา
-      <b>เส้นยิ่งหนา</b> คือทั้งสองสาขาวิชามีคำศัพท์เด่นที่ใช้เหมือนกันซ้ำกันหลายคำ ทำให้โมเดลมีโอกาสจำแนกสับสน
-      ระหว่างสองสาขานั้นได้ง่ายขึ้น <b>เส้นบางหรือไม่มีเส้น</b> คือสาขานั้นใช้คำศัพท์เฉพาะตัวชัดเจน ไม่ค่อยไปซ้ำกับสาขาอื่น
+      แผนภูมิ alluvial แสดงการเคลื่อนของธีมคำสำคัญข้าม 4 ช่วงเวลา (≤2018, 2019–2021, 2022–2023, 2024–2025)
+      แต่ละคอลัมน์คือคำสำคัญเด่นของช่วงนั้น (สูงสุด 14 คำ) ความสูงของแต่ละแท่ง = ความถี่ที่คำนั้นถูกใช้ในช่วงนั้น
+      <b>เส้นเชื่อมระหว่างคอลัมน์</b> ปรากฏเมื่อคำสำคัญเดียวกันติดโผเด่นในทั้งสองช่วงเวลาที่ติดกัน — เส้นยิ่งหนายิ่งแปลว่า
+      คำนั้นถูกใช้ต่อเนื่องข้ามช่วงเวลามาก คำที่ไม่มีเส้นเชื่อมออกหรือเข้าคือคำที่เพิ่งเด่นขึ้นมาใหม่หรือเคยเด่นแล้วหายไป
     </p>
     <div class="viz-frame">
       <div id="arcChart"></div>
     </div>
   </section>
 
-  <section class="panel" id="network">
+  <section class="panel" id="overlay-network">
     <div class="section-head">
-      <h2><span class="num">03</span> Term–Class Association Network</h2>
+      <h2><span class="num">03</span> Overlay Network</h2>
       <span class="count" id="netCount"></span>
     </div>
     <p class="section-intro">
-      กราฟเครือข่ายโยงใยคำศัพท์เข้าหา 10 สาขาวิชา <b>วงกลมใหญ่ (10 วง)</b> แทน 10 สาขาวิชา
-      (เปรียบเหมือนดวงอาทิตย์) <b>วงกลมเล็ก</b> แทนคำศัพท์เด่นแต่ละคำ (เปรียบเหมือนดาวบริวาร) ขนาดของวงกลมเล็ก
-      ตามน้ำหนักของคำในสาขาที่แข็งแรงที่สุด <b>เส้นลากเชื่อม</b> แสดงว่าคำนั้นอยู่ในสาขานั้น โดยจะเชื่อมก็ต่อเมื่อ
-      น้ำหนักของคำต่อสาขานั้นเกินค่า threshold ด้านล่าง ลากวงกลม เลื่อนซูม หรือคลิกวงกลมเพื่อดูรายละเอียดเต็ม
+      กราฟเครือข่าย co-occurrence ของคำสำคัญ (สไตล์ VOSviewer overlay) <b>วงกลม</b> คือคำสำคัญ ขนาดตามความถี่ที่ใช้ทั้งหมด
+      <b>เส้นเชื่อม</b> ปรากฏเมื่อสองคำนั้นปรากฏร่วมกันในบทความเดียวกันมากกว่าค่า threshold ด้านล่าง
+      <b>สีของวงกลม (overlay)</b> คือ<b>ปีเฉลี่ย</b>ที่คำนั้นถูกใช้ — สีน้ำเงิน/เขียวเข้มคือคำที่ใช้มานานแล้ว
+      สีเหลือง/ส้มคือคำที่เพิ่งมาเด่นช่วงหลัง คลิกวงกลมเพื่อดูสาขาวิชาที่คำนั้นสัมพันธ์ด้วยมากที่สุด (จากผลทำนายของ LinearSVC)
     </p>
     <div class="network-controls">
-      <label>Min association weight: <span id="threshVal">1.5</span>
-        <input type="range" id="threshSlider" min="0.6" max="6" step="0.1" value="1.5">
+      <label>Min co-occurrence count: <span id="threshVal">8</span>
+        <input type="range" id="threshSlider" min="2" max="40" step="1" value="8">
       </label>
       <div class="zoom-btns">
         <button id="zoomOut">−</button>
@@ -368,17 +369,18 @@
     <div class="legend-row" id="netLegend"></div>
   </section>
 
-  <section class="panel" id="quadrant">
+  <section class="panel" id="emerging-quadrant">
     <div class="section-head">
-      <h2><span class="num">04</span> Specificity Quadrant Plot</h2>
+      <h2><span class="num">04</span> Emerging Keyword Quadrant</h2>
       <span class="count" id="quadCount"></span>
     </div>
     <p class="section-intro">
-      กราฟจัดคำศัพท์เด่น 88 คำ <b>แกน X</b> คือแรงผลักดันของคำต่อสาขา (น้ำหนัก LinearSVC ในสาขาที่แข็งแรงที่สุด)
-      ยิ่งอยู่ทางขวายิ่งเป็นสัญญาณที่ชัดว่าโมเดลจะทายเป็นสาขานั้น เช่น คำว่า software ทายเป็นสาขาซอฟต์แวร์ทันที
-      <b>แกน Y</b> คือความเฉพาะสาย (ส่วนต่างของน้ำหนักจากสาขาอันดับ 2) ยิ่งอยู่สูงยิ่งเป็นคำเฉพาะทางที่ไม่ปะปนกับ
-      สาขาอื่นเลย <b>ขนาดวงกลม</b> มาจากค่า IDF วงกลมยิ่งใหญ่แปลว่าเป็นคำเฉพาะทางที่หายาก
-      มุมขวาบนสุด (<b>STRONG &amp; EXCLUSIVE</b>) คือกลุ่มคำศัพท์ที่ช่วยให้โมเดลทำนายสาขาได้อย่างแม่นยำที่สุด
+      กราฟจัดคำสำคัญเด่นตามการเติบโตของการใช้งาน <b>แกน X</b> คือ growth rate — ผลต่างของสัดส่วนการใช้คำนั้น
+      ระหว่างช่วง 2024–2025 กับช่วง 2022–2023 ก่อนหน้า ยิ่งอยู่ทางขวายิ่งเป็นคำที่กำลังมาแรง ทางซ้ายคือคำที่กำลังซาลง
+      <b>แกน Y</b> คือความแพร่หลายรวม (จำนวนบทความทั้งหมดที่ใช้คำนี้) <b>ขนาดวงกลม</b> เท่ากับแกน Y
+      <b>สี</b> คือสาขาวิชาหลักที่คำนั้นสัมพันธ์ด้วยมากที่สุด (จากผลทำนายของ LinearSVC) มุมขวาบน
+      (<b>EMERGING &amp; WIDESPREAD</b>) คือคำที่ทั้งใช้กันแพร่หลายและกำลังเติบโตเร็ว — ควรตีความช่วง 2024–2025
+      อย่างระมัดระวังเพราะข้อมูลปี 2025 อาจ index ไม่ครบปี
     </p>
     <div class="viz-frame">
       <div id="quadrantChart"></div>
@@ -388,11 +390,12 @@
   <footer>
     <h4>Methodology</h4>
     <p>
-      Every figure is derived by introspecting the pickled scikit‑learn pipeline directly: the
-      <code>TfidfVectorizer</code> vocabulary/IDF table and the <code>LinearSVC</code> one‑vs‑rest coefficient
-      matrix (10 classes × 50,000 terms). No raw documents, publication metadata, or held‑out predictions were
-      available — only the model artifact — so nothing here reflects real co‑occurrence, publication trends, or
-      accuracy. It describes what the linear model learned to weight, not how well it generalises.
+      ข้อมูลปีตีพิมพ์และคำสำคัญ (Author Keywords / Index Keywords) มาจากบทความ Scopus จริง 36,069 บทความ
+      (10 สาขา, ปี 2000–2025) หลัง clean ด้วย <code>src/clean_data.py</code> สาขาวิชาของแต่ละบทความมาจากผลทำนายของ
+      <code>subject_classifier.joblib</code> (<code>TfidfVectorizer</code> ngram 1–2, min_df=2 ต่อด้วย
+      <code>LinearSVC</code> one‑vs‑rest, test accuracy ~94%) — ไม่ใช่การอ่าน label ต้นฉบับตรง ๆ จึงมีโอกาสทำนายผิดสาขา
+      ได้ประมาณ 6% ของบทความ ตัวเลขทั้งหมดในกราฟ (สัดส่วน, ความถี่, co-occurrence, growth rate) คำนวณจากข้อมูลบทความจริง
+      ผ่าน <code>src/generate_dashboard_data.py</code> ไม่ใช่ coefficient ของโมเดลอีกต่อไป
     </p>
   </footer>
 

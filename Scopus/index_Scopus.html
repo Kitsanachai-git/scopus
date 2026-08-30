@@ -234,7 +234,7 @@
       กราฟเครือข่าย co-occurrence ของคำสำคัญ (สไตล์ VOSviewer overlay) <b>Node size</b> represents document
       frequency, <b>edge width</b> represents co-occurrence, and <b>node color</b> represents the average
       publication year — recent topics appear in warmer colors ปรับค่า &quot;Documents ≥&quot; แล้วกด Apply เพื่อกรองคำสำคัญ
-      ที่มีความถี่ต่ำกว่าเกณฑ์ทิ้ง คลิกวงกลมเพื่อดูบทความจริง หรือคลิกเส้นเชื่อมเพื่อดูบทความที่มีทั้งสองคำร่วมกัน
+      ที่มีความถี่ต่ำกว่าเกณฑ์ทิ้ง คลิกวงกลมเพื่อดูบทความจริงของคำนั้น และดูคำสำคัญที่ปรากฏร่วมกันบ่อยที่สุด
     </p>
     <div class="network-controls">
       <label>Documents ≥ <input id="networkMin" type="number" step="1"></label>
@@ -550,12 +550,6 @@ let netSimulation, netSvg, netG, netZoom;
       .attr('class','net-link')
       .attr('stroke', '#9a917d')
       .attr('stroke-width', d => Math.max(0.6, Math.log1p(d.weight)*0.7))
-      .on('mousemove', (event,d) => showTip('netTooltip', event, `<b>${esc(d.source.term)}</b> × <b>${esc(d.target.term)}</b><br>co-occur in ${d.weight} articles`))
-      .on('mouseleave', () => hideTip('netTooltip'))
-      .on('click', (event,d) => {
-        const docs = docsForTermPair(d.source.term, d.target.term);
-        openDrawer(`“${d.source.term}” × “${d.target.term}”`, docs, `Co-occur in ${d.weight} articles`);
-      })
       .merge(linkSel);
 
     nodeSel = nodeG.selectAll('circle').data(nodes, d=>d.id);
@@ -566,7 +560,7 @@ let netSimulation, netSvg, netG, netZoom;
       .attr('fill', d => yearColor(d.avg_year))
       .attr('fill-opacity', 0.9)
       .attr('stroke', '#fff').attr('stroke-width', 1)
-      .on('click', (event,d) => showDetail(d))
+      .on('click', (event,d) => showDetail(d, resolvedLinks))
       .on('mousemove', (event,d) => showTip('netTooltip', event, `<b>${esc(d.term)}</b><br>${esc(d.top_subject)}<br>${d.freq} articles · avg year ${d.avg_year}`))
       .on('mouseleave', () => hideTip('netTooltip'))
       .call(drag(netSimulation))
@@ -594,18 +588,37 @@ let netSimulation, netSvg, netG, netZoom;
     return d3.drag().on('start',started).on('drag',dragged).on('end',ended);
   }
 
-  function showDetail(d){
+  function showDetail(d, edges){
     const panel = document.getElementById('detailPanel');
     document.getElementById('detailTitle').textContent = d.term;
     let body = '';
     body += `<div class="row"><span>Top subject</span><span>${esc(d.top_subject)}</span></div>`;
     body += `<div class="row"><span>Articles</span><span>${d.freq}</span></div>`;
     body += `<div class="row"><span>Avg. year</span><span>${d.avg_year}</span></div>`;
-    body += `<div class="row" style="cursor:pointer;color:#9A4023;"><span>View documents →</span><span></span></div>`;
+    body += `<div class="row" data-action="view-docs" style="cursor:pointer;color:#9A4023;"><span>View documents →</span><span></span></div>`;
+
+    const coOccur = (edges || [])
+      .filter(e => e.source.id === d.id || e.target.id === d.id)
+      .map(e => ({ term: e.source.id === d.id ? e.target.term : e.source.term, weight: e.weight }))
+      .sort((a,b) => b.weight - a.weight)
+      .slice(0, 8);
+    if (coOccur.length){
+      body += `<div class="row" style="border-bottom:none;padding-top:10px;"><span><b>Co-occurs with</b></span><span></span></div>`;
+      coOccur.forEach(c => {
+        body += `<div class="row" data-action="view-pair" data-term="${esc(c.term)}" style="cursor:pointer;"><span>${esc(c.term)}</span><span>${c.weight}</span></div>`;
+      });
+    }
+
     document.getElementById('detailBody').innerHTML = body;
-    document.querySelector('#detailBody .row:last-child').onclick = () => {
+    document.querySelector('[data-action="view-docs"]').onclick = () => {
       openDrawer(`“${d.term}”`, docsForTerm(d.term), `${esc(d.top_subject)} · avg year ${d.avg_year}`);
     };
+    document.querySelectorAll('[data-action="view-pair"]').forEach(el => {
+      el.onclick = () => {
+        const other = el.getAttribute('data-term');
+        openDrawer(`“${d.term}” × “${other}”`, docsForTermPair(d.term, other), `Co-occurring keywords`);
+      };
+    });
     panel.classList.add('show');
   }
   document.getElementById('detailClose').onclick = () => document.getElementById('detailPanel').classList.remove('show');

@@ -577,7 +577,7 @@ let netSimulation, netSvg, netG, netZoom;
     labelSel = labelSel.enter().append('text')
       .attr('class','net-label')
       .style('font-size', 10.5)
-      .text(d => d.term)
+      .text(d => `${d.term} (${d.freq.toLocaleString('en-US')})`)
       .merge(labelSel);
 
     function ticked(){

@@ -94,6 +94,17 @@
   }
   .network-controls label{ display:flex; align-items:center; gap:8px; }
   .network-controls input[type=range]{ width:220px; accent-color:var(--rust); }
+  .network-controls input[type=number]{
+    width:82px; padding:6px 8px; border:1px solid var(--paper-line); border-radius:5px;
+    font-family:'IBM Plex Mono', monospace; font-size:13px;
+  }
+  .zoom-btns-apply{
+    padding:8px 14px; border:1px solid var(--rust); border-radius:5px; background:var(--rust); color:#fff;
+    cursor:pointer; font-family:'IBM Plex Mono', monospace; font-size:13px;
+  }
+  .zoom-btns-apply:hover{ background:#7f3018; }
+  .net-gradient-legend{ display:flex; align-items:center; gap:8px; font-family:'IBM Plex Mono', monospace; font-size:12px; }
+  .net-gradient-legend .bar{ width:180px; height:10px; border-radius:5px; background:linear-gradient(90deg,#2b6cb0,#54a889,#f2c14e,#d95f59); }
   .zoom-btns{ display:flex; gap:4px; margin-left:auto; }
   .zoom-btns button{
     width:34px;height:34px; background:var(--ink-3); border:1px solid var(--paper-line); color:var(--paper-hi);
@@ -220,15 +231,14 @@
       <span class="count" id="netCount"></span>
     </div>
     <p class="section-intro">
-      กราฟเครือข่าย co-occurrence ของคำสำคัญ (สไตล์ VOSviewer overlay) <b>วงกลม</b> คือคำสำคัญ ขนาดตามความถี่ที่ใช้ทั้งหมด
-      <b>เส้นเชื่อม</b> ปรากฏเมื่อสองคำนั้นปรากฏร่วมกันในบทความเดียวกันมากกว่าค่า threshold ด้านล่าง
-      <b>สีของวงกลม</b> คือสาขาวิชาที่คำนั้นสัมพันธ์ด้วยมากที่สุด (จากผลทำนายของ LinearSVC) คลิกวงกลมเพื่อดูบทความจริง
-      หรือคลิกเส้นเชื่อมเพื่อดูบทความที่มีทั้งสองคำร่วมกัน
+      กราฟเครือข่าย co-occurrence ของคำสำคัญ (สไตล์ VOSviewer overlay) <b>Node size</b> represents document
+      frequency, <b>edge width</b> represents co-occurrence, and <b>node color</b> represents the average
+      publication year — recent topics appear in warmer colors ปรับค่า &quot;Documents ≥&quot; แล้วกด Apply เพื่อกรองคำสำคัญ
+      ที่มีความถี่ต่ำกว่าเกณฑ์ทิ้ง คลิกวงกลมเพื่อดูบทความจริง หรือคลิกเส้นเชื่อมเพื่อดูบทความที่มีทั้งสองคำร่วมกัน
     </p>
     <div class="network-controls">
-      <label>Min co-occurrence count: <span id="threshVal">8</span>
-        <input type="range" id="threshSlider" min="2" max="40" step="1" value="8">
-      </label>
+      <label>Documents ≥ <input id="networkMin" type="number" step="1"></label>
+      <button class="zoom-btns-apply" id="networkApply" type="button">Apply</button>
       <div class="zoom-btns">
         <button id="zoomOut">−</button>
         <button id="zoomIn">+</button>
@@ -487,6 +497,8 @@ function hideTip(id){ document.getElementById(id).style.opacity = 0; }
 
 /* ============================================================
    3. OVERLAY NETWORK (keyword co-occurrence)
+   Node size = document frequency, edge width = co-occurrence,
+   node color = average publication year (warmer = more recent)
    ============================================================ */
 let netSimulation, netSvg, netG, netZoom;
 (function network(){
@@ -506,6 +518,8 @@ let netSimulation, netSvg, netG, netZoom;
 
   const freqExtent = d3.extent(allNodes, d => d.freq);
   const nodeRadius = d3.scaleSqrt().domain(freqExtent).range([5, 24]);
+  const yearExtent = d3.extent(allNodes, d => d.avg_year);
+  const yearColor = d3.scaleSequential(d3.interpolateRgbBasis(['#2b6cb0','#54a889','#f2c14e','#d95f59'])).domain(yearExtent);
 
   const linkG = netG.append('g');
   const nodeG = netG.append('g');
@@ -513,14 +527,13 @@ let netSimulation, netSvg, netG, netZoom;
 
   let linkSel, nodeSel, labelSel;
 
-  function render(minWeight){
-    const edges = allEdges.filter(e => e.weight >= minWeight);
-    const connected = new Set(edges.flatMap(e => [e.source, e.target]));
-    const nodes = allNodes.filter(n => connected.has(n.term)).map(d => ({...d, id: d.term}));
+  function render(minDocs){
+    const nodes = allNodes.filter(n => n.freq >= minDocs).map(d => ({...d, id: d.term}));
     const nodeById = {}; nodes.forEach(n => nodeById[n.id] = n);
-    const resolvedLinks = edges.map(e => ({source: nodeById[e.source], target: nodeById[e.target], weight: e.weight})).filter(l => l.source && l.target);
+    const edges = allEdges.filter(e => nodeById[e.source] && nodeById[e.target]);
+    const resolvedLinks = edges.map(e => ({source: nodeById[e.source], target: nodeById[e.target], weight: e.weight}));
 
-    document.getElementById('netCount').textContent = `${nodes.length} keywords · ${resolvedLinks.length} co-occurrence links`;
+    document.getElementById('netCount').textContent = `${DATA.year_min}–${DATA.year_max} · ${nodes.length} keywords shown`;
 
     if (netSimulation) netSimulation.stop();
     netSimulation = d3.forceSimulation(nodes)
@@ -549,8 +562,8 @@ let netSimulation, netSvg, netG, netZoom;
     nodeSel = nodeSel.enter().append('circle')
       .attr('class','net-node-term')
       .attr('r', d => nodeRadius(d.freq))
-      .attr('fill', d => classColor(d.top_subject))
-      .attr('fill-opacity', 0.85)
+      .attr('fill', d => yearColor(d.avg_year))
+      .attr('fill-opacity', 0.9)
       .attr('stroke', '#fff').attr('stroke-width', 1)
       .on('click', (event,d) => showDetail(d))
       .on('mousemove', (event,d) => showTip('netTooltip', event, `<b>${esc(d.term)}</b><br>${esc(d.top_subject)}<br>${d.freq} articles · avg year ${d.avg_year}`))
@@ -596,17 +609,19 @@ let netSimulation, netSvg, netG, netZoom;
   }
   document.getElementById('detailClose').onclick = () => document.getElementById('detailPanel').classList.remove('show');
 
-  const slider = document.getElementById('threshSlider');
-  const threshVal = document.getElementById('threshVal');
-  slider.addEventListener('input', () => {
-    threshVal.textContent = slider.value;
-    render(parseFloat(slider.value));
-  });
+  const minInput = document.getElementById('networkMin');
+  minInput.value = freqExtent[0];
+  minInput.min = freqExtent[0];
+  document.getElementById('networkApply').onclick = () => {
+    const v = Math.max(freqExtent[0], parseInt(minInput.value, 10) || freqExtent[0]);
+    minInput.value = v;
+    render(v);
+  };
 
   const legend = document.getElementById('netLegend');
-  legend.innerHTML = CLASSES.map(c => `<span><span class="sw" style="background:${classColor(c)}"></span>${c}</span>`).join('');
+  legend.innerHTML = `<span class="net-gradient-legend"><span>${yearExtent[0].toFixed(0)}</span><span class="bar"></span><span>${yearExtent[1].toFixed(0)}</span></span>`;
 
-  render(parseFloat(slider.value));
+  render(freqExtent[0]);
 })();
 
 /* ============================================================

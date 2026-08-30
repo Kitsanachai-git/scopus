@@ -275,11 +275,11 @@
     <h4>Methodology</h4>
     <p>
       ข้อมูลปีตีพิมพ์และคำสำคัญ (Author Keywords / Index Keywords) มาจากบทความ Scopus จริง 36,069 บทความ
-      (10 สาขา, ปี 2000–2025) หลัง clean ด้วย <code>src/clean_data.py</code> สาขาวิชาของแต่ละบทความมาจากผลทำนายของ
+      (10 สาขา, ปี 2000–2025) หลัง clean ด้วย  สาขาวิชาของแต่ละบทความมาจากผลทำนายของ
       <code>subject_classifier.joblib</code> (<code>TfidfVectorizer</code> ngram 1–2, min_df=2 ต่อด้วย
       <code>LinearSVC</code> one‑vs‑rest, test accuracy ~94%) — ไม่ใช่การอ่าน label ต้นฉบับตรง ๆ จึงมีโอกาสทำนายผิดสาขา
       ได้ประมาณ 6% ของบทความ ตัวเลขทั้งหมดในกราฟ (สัดส่วน, ความถี่, co-occurrence, growth rate) คำนวณจากข้อมูลบทความจริง
-      ผ่าน <code>src/generate_dashboard_data.py</code> ไม่ใช่ coefficient ของโมเดลอีกต่อไป
+      ผ่าน dashboard
     </p>
   </footer>
 

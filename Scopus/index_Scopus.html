@@ -523,9 +523,10 @@ let netSimulation, netSvg, netG, netZoom;
 
   const linkG = netG.append('g');
   const nodeG = netG.append('g');
+  const countG = netG.append('g');
   const labelG = netG.append('g');
 
-  let linkSel, nodeSel, labelSel;
+  let linkSel, nodeSel, countSel, labelSel;
 
   function render(minDocs){
     const nodes = allNodes.filter(n => n.freq >= minDocs).map(d => ({...d, id: d.term}));
@@ -574,9 +575,22 @@ let netSimulation, netSvg, netG, netZoom;
       .text(d => `${d.term} (${d.freq.toLocaleString('en-US')})`)
       .merge(labelSel);
 
+    countSel = countG.selectAll('text').data(nodes, d=>d.id);
+    countSel.exit().remove();
+    countSel = countSel.enter().append('text')
+      .attr('class','net-node-count')
+      .attr('text-anchor','middle')
+      .attr('dy', 3)
+      .style('font-size', d => Math.min(11, nodeRadius(d.freq)*0.75))
+      .style('fill', '#fff')
+      .style('pointer-events','none')
+      .text(d => d.freq.toLocaleString('en-US'))
+      .merge(countSel);
+
     function ticked(){
       linkSel.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
       nodeSel.attr('cx', d=>d.x).attr('cy', d=>d.y);
+      countSel.attr('x', d=>d.x).attr('y', d=>d.y);
       labelSel.attr('x', d=>d.x + nodeRadius(d.freq) + 3).attr('y', d=>d.y + 3);
     }
   }
